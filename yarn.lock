@@ -674,6 +674,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/electron-localshortcut@npm:^3":
+  version: 3.1.3
+  resolution: "@types/electron-localshortcut@npm:3.1.3"
+  dependencies:
+    electron: "npm:*"
+  checksum: 10/934b183b0ab25ef41746d59a9115dd6744faf760dd3f4c4ad9bfb33cffbe113d4e6742010133553f0f3ac7d135fd67527cb867fc5d858561d090541be0d383c7
+  languageName: node
+  linkType: hard
+
 "@types/expect@npm:^1.20.4":
   version: 1.20.4
   resolution: "@types/expect@npm:1.20.4"
@@ -1715,6 +1724,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"debug@npm:^4.0.1":
+  version: 4.3.6
+  resolution: "debug@npm:4.3.6"
+  dependencies:
+    ms: "npm:2.1.2"
+  peerDependenciesMeta:
+    supports-color:
+      optional: true
+  checksum: 10/d3adb9af7d57a9e809a68f404490cf776122acca16e6359a2702c0f462e510e91f9765c07f707b8ab0d91e03bad57328f3256f5082631cefb5393d0394d50fb7
+  languageName: node
+  linkType: hard
+
 "decompress-response@npm:^6.0.0":
   version: 6.0.0
   resolution: "decompress-response@npm:6.0.0"
@@ -1923,6 +1944,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"electron-is-accelerator@npm:^0.1.0":
+  version: 0.1.2
+  resolution: "electron-is-accelerator@npm:0.1.2"
+  checksum: 10/2bc05a0acf9c252d636b48c716ad0a8c2f29875559b87c666852575310c17fc8350907a6f09412d6cbcc71da42f0228a0869fb68c3ead15e8211d5f13fcdbd17
+  languageName: node
+  linkType: hard
+
+"electron-localshortcut@npm:^3.2.1":
+  version: 3.2.1
+  resolution: "electron-localshortcut@npm:3.2.1"
+  dependencies:
+    debug: "npm:^4.0.1"
+    electron-is-accelerator: "npm:^0.1.0"
+    keyboardevent-from-electron-accelerator: "npm:^2.0.0"
+    keyboardevents-areequal: "npm:^0.2.1"
+  checksum: 10/c3e9d160f8af45dbeb72917b6d30cb6220b6ba55c94ab578d81e236b054db23ef64abc3ab51d226f693cccf8b6a0d79170331e4fc26dc3c1dfec53e2091013f2
+  languageName: node
+  linkType: hard
+
 "electron-log@npm:^5.1.1":
   version: 5.1.2
   resolution: "electron-log@npm:5.1.2"
@@ -1982,6 +2022,19 @@ __metadata:
     semver: "npm:^7.3.8"
     tiny-typed-emitter: "npm:^2.1.0"
   checksum: 10/f0c83dc067ff72ed60ac192f18045623f87503daaf6ad7f8952a647f51fa0acb78ec1cd0caa49ec3600ce3922d9a86cf48696be9bca4a8352117a7454da14a84
+  languageName: node
+  linkType: hard
+
+"electron@npm:*":
+  version: 31.3.1
+  resolution: "electron@npm:31.3.1"
+  dependencies:
+    "@electron/get": "npm:^2.0.0"
+    "@types/node": "npm:^20.9.0"
+    extract-zip: "npm:^2.0.1"
+  bin:
+    electron: cli.js
+  checksum: 10/bc6e582c2a6ad9a95eeff71a24b2f798b88ce33dae1cae9e02fcb81f058463c502210a8eb0b9a061c82223060159ac69c141386f689ce2f52818f96fefc827c9
   languageName: node
   linkType: hard
 
@@ -3287,6 +3340,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"keyboardevent-from-electron-accelerator@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "keyboardevent-from-electron-accelerator@npm:2.0.0"
+  checksum: 10/fbeaac6c54e438ed55a5e26dda639bae450f4483d79561737ed38f36a8b937af05cac958530cef8211125a72293b68f3c3a84f041b8f50480330c71e2217e6eb
+  languageName: node
+  linkType: hard
+
+"keyboardevents-areequal@npm:^0.2.1":
+  version: 0.2.2
+  resolution: "keyboardevents-areequal@npm:0.2.2"
+  checksum: 10/05d846f75170238bbb9ed45d13ca9c6cd3e68ea8ba6b7727971790fa55b44c3386ec8b9c321ae72dae0d0944678d0dc2b922148fe67d3f9720bf30a23999dd65
+  languageName: node
+  linkType: hard
+
 "keyv@npm:^4.0.0":
   version: 4.5.4
   resolution: "keyv@npm:4.5.4"
@@ -3710,6 +3777,7 @@ __metadata:
     "@biomejs/biome": "npm:^1.7.1"
     "@electron/fuses": "npm:^1.8.0"
     "@types/copy": "npm:^0.3.5"
+    "@types/electron-localshortcut": "npm:^3"
     "@types/figlet": "npm:^1.5.8"
     "@types/node": "npm:^20.12.7"
     "@types/yargs": "npm:^17.0.32"
@@ -3719,6 +3787,7 @@ __metadata:
     cssnano-preset-advanced: "npm:^7.0.1"
     electron: "npm:^30.0.1"
     electron-builder: "npm:^24.13.3"
+    electron-localshortcut: "npm:^3.2.1"
     electron-log: "npm:^5.1.1"
     electron-store: "npm:^8.1.0"
     electron-tabs: "npm:^1.0.4"

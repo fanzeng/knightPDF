@@ -25,7 +25,6 @@ import {
 	ipcMain,
 	shell,
 	nativeTheme,
-	globalShortcut,
 	Notification,
 	type IpcMainEvent,
 	type IpcMainInvokeEvent,
@@ -35,6 +34,7 @@ import { parse, join, resolve } from "node:path";
 import { version } from "../../package.json";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "node:fs";
+import localShortcut from "electron-localshortcut";
 import log from "electron-log";
 import yargs from "yargs";
 import Store from "electron-store";
@@ -82,7 +82,7 @@ const linux = process.platform === "linux";
 log.transports.file.level = "debug";
 
 const NOTIFICATION_TITLE = "Trans rights";
-const NOTIFICATION_BODY = "Trans rigths are human rigths 🏳️‍⚧️";
+const NOTIFICATION_BODY = "Trans rights are human rights 🏳️‍⚧️";
 
 //in the future this can be use for migrations
 const store_version = store.get("version");
@@ -413,7 +413,7 @@ app.whenReady().then(() => {
 		createWindow();
 	}
 
-	globalShortcut.register("alt+CommandOrControl+t", () => {
+	localShortcut.register("alt+CommandOrControl+t", () => {
 		console.log(NOTIFICATION_BODY);
 		new Notification({
 			title: NOTIFICATION_TITLE,
@@ -422,7 +422,7 @@ app.whenReady().then(() => {
 	});
 
 	for (const action of keybinds.actions) {
-		globalShortcut.registerAll(
+		localShortcut.register(
 			keybinds.getActionKeybindsTrigger(action),
 			() => {
 				const focusedWin = BrowserWindow.getFocusedWindow();
@@ -438,7 +438,7 @@ app.whenReady().then(() => {
 
 	// register Ctrl+1 to Ctrl+9 shortcuts
 	for (let i = 1; i <= 9; i++) {
-		globalShortcut.register(`CommandOrControl+${i}`, () => {
+		localShortcut.register(`CommandOrControl+${i}`, () => {
 			const focusedWin = BrowserWindow.getFocusedWindow();
 			if (focusedWin) {
 				focusedWin.webContents.send("switch-tab", i);
