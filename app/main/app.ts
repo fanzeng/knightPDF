@@ -1,5 +1,5 @@
 /*
-NightPDF Dark mode for Ps    
+NightPDF Dark mode for Ps
 Copyright (C) 2021  Advaith Madhukar
 
 This program is free software; you can redistribute it and/or
@@ -413,7 +413,7 @@ app.whenReady().then(() => {
 		createWindow();
 	}
 
-	localShortcut.register("alt+CommandOrControl+t", () => {
+	localShortcut.register("shift+alt+T", () => {
 		console.log(NOTIFICATION_BODY);
 		new Notification({
 			title: NOTIFICATION_TITLE,
@@ -438,7 +438,7 @@ app.whenReady().then(() => {
 
 	// register Ctrl+1 to Ctrl+9 shortcuts
 	for (let i = 1; i <= 9; i++) {
-		localShortcut.register(`CommandOrControl+${i}`, () => {
+		localShortcut.register(`Ctrl+${i}`, () => {
 			const focusedWin = BrowserWindow.getFocusedWindow();
 			if (focusedWin) {
 				focusedWin.webContents.send("switch-tab", i);

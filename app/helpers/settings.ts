@@ -302,31 +302,29 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 		},
 		keybinds: {
 			OpenWindow: {
-				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+t",
-				]),
+				keybind: KeybindHelper.keybindFromTriggerArray(["Ctrl+T"]),
 				action: "openNewPDF",
 				displayName: "Open New PDF",
 			},
 			CloseWindow: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+w",
-					"CommandOrControl+F4",
+					"Ctrl+w",
+					"Ctrl+F4",
 				]),
 				action: "close-tab",
 				displayName: "Close Tab",
 			},
 			ReOpen: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+t",
+					"Ctrl+Shift+T",
 				]),
 				action: "reopen-tab",
 				displayName: "Reopen Tab",
 			},
 			SwitchTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Tab",
-					"CommandOrControl+PageDown",
+					"Ctrl+Tab",
+					"Ctrl+PageDown",
 				]),
 				action: "switch-tab",
 				data: "next",
@@ -334,8 +332,8 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 			},
 			PreviousTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+Tab",
-					"CommandOrControl+PageUp",
+					"Ctrl+Shift+Tab",
+					"Ctrl+PageUp",
 				]),
 				action: "switch-tab",
 				data: "prev",
@@ -343,7 +341,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 			},
 			LeftTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+PageUp",
+					"Ctrl+Shift+PageUp",
 				]),
 				action: "move-tab",
 				data: "prev",
@@ -351,7 +349,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 			},
 			RightTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+PageDown",
+					"Ctrl+Shift+PageDown",
 				]),
 				action: "move-tab",
 				data: "next",
@@ -359,7 +357,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 			},
 			StartTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+Home",
+					"Ctrl+Shift+Home",
 				]),
 				action: "move-tab",
 				data: "start",
@@ -367,7 +365,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 			},
 			EndTab: {
 				keybind: KeybindHelper.keybindFromTriggerArray([
-					"CommandOrControl+Shift+End",
+					"Ctrl+Shift+End",
 				]),
 				action: "move-tab",
 				data: "end",
@@ -380,7 +378,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 // The modifier keys allowed in NightPDF
 const ModifierKeys: ModifierKeyMap = {
 	CommandOrControl: {
-		savesAs: "CommandOrControl",
+		savesAs: "Ctrl",
 		osDependent: true,
 		osVariants: {
 			darwin: "⌘",
