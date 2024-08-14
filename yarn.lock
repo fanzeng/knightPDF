@@ -584,12 +584,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^22.2.0":
-  version: 22.2.0
-  resolution: "@types/node@npm:22.2.0"
+"@types/node@npm:^22.3.0":
+  version: 22.3.0
+  resolution: "@types/node@npm:22.3.0"
   dependencies:
-    undici-types: "npm:~6.13.0"
-  checksum: 10/2957c5c81f1a07a1210f28382adae65c11070c301e395fa819448516f1a2a710054b29e0ec7d8e28624afbcd90dae810403a497109545dea835b554fc76edf6c
+    undici-types: "npm:~6.18.2"
+  checksum: 10/c31a798ed722a7417727f018ea6d621db038a613c626da643174cc6f3dcf4ce2fc9933a010aec289103d9564da2c2f9b054c9aa398828f00e17269a78c64d4ec
   languageName: node
   linkType: hard
 
@@ -1084,6 +1084,16 @@ __metadata:
     debug: "npm:^4.3.4"
     sax: "npm:^1.2.4"
   checksum: 10/6b4b6518f8859a90cd6b49ff8053134d731438a588496e5f517ec6d12baef3f1a1c74aaa3142f9d4c61979fca1addc3e47432a956c122cfad582b2145a3df077
+  languageName: node
+  linkType: hard
+
+"builder-util-runtime@npm:9.2.5":
+  version: 9.2.5
+  resolution: "builder-util-runtime@npm:9.2.5"
+  dependencies:
+    debug: "npm:^4.3.4"
+    sax: "npm:^1.2.4"
+  checksum: 10/89c1e67c286ad5dd039abd56af91b3fa3d01eb62ce16c07e8d496a06eb0ed9ce015870d83dd919ffa387a32d47f9080923958672fc993154c8a184c6b1a78adc
   languageName: node
   linkType: hard
 
@@ -1892,11 +1902,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-updater@npm:6.2.1":
-  version: 6.2.1
-  resolution: "electron-updater@npm:6.2.1"
+"electron-updater@npm:6.3.3":
+  version: 6.3.3
+  resolution: "electron-updater@npm:6.3.3"
   dependencies:
-    builder-util-runtime: "npm:9.2.4"
+    builder-util-runtime: "npm:9.2.5"
     fs-extra: "npm:^10.1.0"
     js-yaml: "npm:^4.1.0"
     lazy-val: "npm:^1.0.5"
@@ -1904,7 +1914,7 @@ __metadata:
     lodash.isequal: "npm:^4.5.0"
     semver: "npm:^7.3.8"
     tiny-typed-emitter: "npm:^2.1.0"
-  checksum: 10/da4bf2517f5a60a904f52966c45256b5bf86bc11e2534133163565668db2746600fba6553c68d04ace1fe519dc8d3cd8a6e387dc6f7721058dd3977f94895709
+  checksum: 10/8209e007d06345658bc1544ab97b308caf8a4a2c3551bb8007ae057c389400a55aad97cdb8036e38c4edd56417f9d33e4b28b74712fe2aad677f79cd6535bdbf
   languageName: node
   linkType: hard
 
@@ -3624,7 +3634,7 @@ __metadata:
     "@types/copy": "npm:^0.3.5"
     "@types/electron-localshortcut": "npm:^3.1.3"
     "@types/figlet": "npm:^1.5.8"
-    "@types/node": "npm:^22.2.0"
+    "@types/node": "npm:^22.3.0"
     "@types/yargs": "npm:^17.0.33"
     chalk: "npm:^5.3.0"
     copy: "npm:^0.3.2"
@@ -3636,7 +3646,7 @@ __metadata:
     electron-log: "npm:^5.1.7"
     electron-store: "npm:^8.2.0"
     electron-tabs: "npm:^1.0.4"
-    electron-updater: "npm:6.2.1"
+    electron-updater: "npm:6.3.3"
     esbuild: "npm:^0.23.0"
     esbuild-plugin-glob: "npm:^2.2.3"
     figlet: "npm:^1.7.0"
@@ -5043,10 +5053,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici-types@npm:~6.13.0":
-  version: 6.13.0
-  resolution: "undici-types@npm:6.13.0"
-  checksum: 10/da52e37cbc6da3a75da86fa08dd795ca8924430deb91005eb884b840e46e19013ccd4c1c289f70018e8cf0c338add24a500e7c3acfcd49b1ffb27ff9f91e38b9
+"undici-types@npm:~6.18.2":
+  version: 6.18.2
+  resolution: "undici-types@npm:6.18.2"
+  checksum: 10/5c863f3cc65d012498cf0f8562b9d81e785c2b8b8a8d66343b9f4351ff40a3a29b500fbaea10667626fd91a32433d4c876810aafa5ab561369de702b62d4b323
   languageName: node
   linkType: hard
 

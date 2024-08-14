@@ -46,6 +46,7 @@ import {
 	KeybindsHelper,
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
+import process from "node:process";
 
 // Workaround if the schema is invalid
 // see: https://github.com/sindresorhus/electron-store/issues/116#issuecomment-816515814
@@ -413,13 +414,15 @@ app.whenReady().then(() => {
 		createWindow();
 	}
 
-	localShortcut.register("shift+alt+T", () => {
-		console.log(NOTIFICATION_BODY);
-		new Notification({
-			title: NOTIFICATION_TITLE,
-			body: NOTIFICATION_BODY,
-		}).show();
-	});
+	if (process.env.EASTER_EGG) {
+		localShortcut.register("shift+alt+T", () => {
+			console.log(NOTIFICATION_BODY);
+			new Notification({
+				title: NOTIFICATION_TITLE,
+				body: NOTIFICATION_BODY,
+			}).show();
+		});
+	}
 
 	for (const action of keybinds.actions) {
 		localShortcut.register(
