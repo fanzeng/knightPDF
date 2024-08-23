@@ -54,7 +54,7 @@
 		"typescript": "^5.5.4"
 	},
 	"dependencies": {
-		"electron-localshortcut": "^3.2.1",
+		"electron-localshortcut": "3.2.1",
 		"electron-log": "^5.1.7",
 		"electron-store": "^8.2.0",
 		"electron-tabs": "^1.0.4",

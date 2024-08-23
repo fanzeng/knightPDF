@@ -1837,7 +1837,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-localshortcut@npm:^3.2.1":
+"electron-localshortcut@npm:3.2.1":
   version: 3.2.1
   resolution: "electron-localshortcut@npm:3.2.1"
   dependencies:
@@ -3642,7 +3642,7 @@ __metadata:
     cssnano-preset-advanced: "npm:^7.0.5"
     electron: "npm:^31.3.1"
     electron-builder: "npm:^24.13.3"
-    electron-localshortcut: "npm:^3.2.1"
+    electron-localshortcut: "npm:3.2.1"
     electron-log: "npm:^5.1.7"
     electron-store: "npm:^8.2.0"
     electron-tabs: "npm:^1.0.4"
