@@ -421,7 +421,6 @@ app.whenReady().then(() => {
     const kb = keybinds.getActionKeybindsTrigger(action);
     const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
-      console.log(focusedWin);
       if (focusedWin) {
         focusedWin.webContents.send(
           keybinds.getAction(action),
@@ -432,11 +431,32 @@ app.whenReady().then(() => {
     localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
     sm.push({
       label: action,
-      accelerator: kb[0],
+      accelerator: kb?.length > 0 ? kb[0] : "",
       click: cb,
     });
   }
 
+  // register Ctrl+1 to Ctrl+9 shortcuts
+  let meta = "Ctrl";
+  if (process.platform === "darwin") {
+    meta = "Cmd";
+  }
+  for (let i = 1; i <= 9; i++) {
+    const acc = `${meta}+${i}`;
+    const cb = () => {
+      const focusedWin = BrowserWindow.getFocusedWindow();
+      console.log(focusedWin);
+      if (focusedWin) {
+        focusedWin.webContents.send("switch-tab", i);
+      }
+    };
+    localShortcut.register(acc, cb);
+    sm.push({
+      label: `Switch to tab ${i}`,
+      accelerator: acc,
+      click: cb,
+    });
+  }
   const menu = Menu.getApplicationMenu() || new Menu();
   menu.append(
     new MenuItem({
@@ -445,16 +465,6 @@ app.whenReady().then(() => {
     }),
   );
   Menu.setApplicationMenu(menu);
-
-  // register Ctrl+1 to Ctrl+9 shortcuts
-  for (let i = 1; i <= 9; i++) {
-    localShortcut.register(`Ctrl+${i}`, () => {
-      const focusedWin = BrowserWindow.getFocusedWindow();
-      if (focusedWin) {
-        focusedWin.webContents.send("switch-tab", i);
-      }
-    });
-  }
 });
 
 app.on("window-all-closed", () => {

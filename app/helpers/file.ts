@@ -108,7 +108,16 @@ async function openFile(
           resolved_file,
         )}`;
       }
+      const focusTab = (tab: Tab) => {
+        const webview = tab.webview as Electron.WebviewTag;
+        const iframe = webview.shadowRoot?.querySelector("iframe");
+        if (iframe) {
+          iframe.focus();
+        }
+      };
+
       const tab = tabGroup?.addTab(entry);
+      focusTab(tab);
       const webview = tab?.webview as webviewTag;
       webview.addEventListener("will-navigate", (e) => {
         const event = e as EventNav;
