@@ -13,3 +13,5 @@ keys
 !.yarn/versions
 out
 *pdf
+.vscode
+.zed

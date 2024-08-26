@@ -1,5 +1,5 @@
 /*
-Night pdf Dark mode for Pdfs    
+Night pdf Dark mode for Pdfs
 Copyright (C) 2021  Advaith Madhukar
 
 This program is free software; you can redistribute it and/or
@@ -20,56 +20,56 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { Keybinds, Keybind, ModifierKeyMap } from "../helpers/settings";
 
 contextBridge.exposeInMainWorld("api", {
-	GetVersion: async () => {
-		return await ipcRenderer.invoke("GetVersion");
-	},
+  GetVersion: async () => {
+    return await ipcRenderer.invoke("GetVersion");
+  },
 
-	getFileName: async (filePath: string) => {
-		return await ipcRenderer.invoke("getPath", filePath);
-	},
+  getFileName: async (filePath: string) => {
+    return await ipcRenderer.invoke("getPath", filePath);
+  },
 
-	ResolvePath: async (filePath: string) => {
-		return await ipcRenderer.invoke("ResolvePath", filePath);
-	},
+  ResolvePath: async (filePath: string) => {
+    return await ipcRenderer.invoke("ResolvePath", filePath);
+  },
 
-	openExternel: (url: string) => {
-		ipcRenderer.send("openExternal", url);
-	},
+  openExternel: (url: string) => {
+    ipcRenderer.send("openExternal", url);
+  },
 
-	GetSettings: () => {
-		return ipcRenderer.invoke("GetSettings");
-	},
+  GetSettings: () => {
+    return ipcRenderer.invoke("GetSettings");
+  },
 
-	removeAllListeners: (ListenerType: string) => {
-		ipcRenderer.removeAllListeners(ListenerType);
-	},
+  removeAllListeners: (ListenerType: string) => {
+    ipcRenderer.removeAllListeners(ListenerType);
+  },
 
-	SetBind: (key: string, value: Keybinds) => {
-		return ipcRenderer.send("SetBind", [key, value]);
-	},
-	SetSetting: (group: string, key: string, value: unknown) => {
-		return ipcRenderer.send("SetSetting", [group, key, value]);
-	},
-	openNewPDF: (pdf: string) => {
-		ipcRenderer.send("openNewPDF", pdf);
-	},
+  SetBind: (key: string, value: Keybinds) => {
+    return ipcRenderer.send("SetBind", [key, value]);
+  },
+  SetSetting: (group: string, key: string, value: unknown) => {
+    return ipcRenderer.send("SetSetting", [group, key, value]);
+  },
+  openNewPDF: (pdf: string) => {
+    ipcRenderer.send("openNewPDF", pdf);
+  },
 
-	newWindow: (file: string) => {
-		ipcRenderer.send("newWindow", file);
-	},
+  newWindow: (file: string) => {
+    ipcRenderer.send("newWindow", file);
+  },
 
-	togglePrinting: (value: boolean) => {
-		ipcRenderer.send("togglePrinting", value);
-	},
+  togglePrinting: (value: boolean) => {
+    ipcRenderer.send("togglePrinting", value);
+  },
 
-	resizeWindow: (value: string) => {
-		ipcRenderer.send("resizeWindow", value);
-	},
+  resizeWindow: (value: string) => {
+    ipcRenderer.send("resizeWindow", value);
+  },
 
-	//biome-ignore lint/suspicious/noExplicitAny: we can pass Function here but vscode freaks out :/
-	on: (eventName: string, callback: any) => {
-		ipcRenderer.on(eventName, callback);
-	},
-	// for use in keybind display
-	platform: process.platform,
+  //biome-ignore lint/suspicious/noExplicitAny: we can pass Function here but vscode freaks out :/
+  on: (eventName: string, callback: any) => {
+    ipcRenderer.on(eventName, callback);
+  },
+  // for use in keybind display
+  platform: process.platform,
 });
