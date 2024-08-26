@@ -21,6 +21,8 @@ import {
   app,
   BrowserWindow,
   Menu,
+  MenuItem,
+  type MenuItemConstructorOptions,
   dialog,
   ipcMain,
   shell,
@@ -414,18 +416,35 @@ app.whenReady().then(() => {
       }).show();
     });
   }
-
+  const sm: MenuItemConstructorOptions[] = [];
   for (const action of keybinds.actions) {
-    localShortcut.register(keybinds.getActionKeybindsTrigger(action), () => {
+    const kb = keybinds.getActionKeybindsTrigger(action);
+    const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
+      console.log(focusedWin);
       if (focusedWin) {
         focusedWin.webContents.send(
           keybinds.getAction(action),
           keybinds.getActionData(action),
         );
       }
+    };
+    localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
+    sm.push({
+      label: action,
+      accelerator: kb[0],
+      click: cb,
     });
   }
+
+  const menu = Menu.getApplicationMenu() || new Menu();
+  menu.append(
+    new MenuItem({
+      label: "Navigation",
+      submenu: sm,
+    }),
+  );
+  Menu.setApplicationMenu(menu);
 
   // register Ctrl+1 to Ctrl+9 shortcuts
   for (let i = 1; i <= 9; i++) {
