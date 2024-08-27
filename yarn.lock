@@ -1837,15 +1837,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-localshortcut@npm:^3.2.1":
+"electron-localshortcut@https://github.com/fanzeng/electron-localshortcut#fan/fix-omitted-window-arg-issue":
   version: 3.2.1
-  resolution: "electron-localshortcut@npm:3.2.1"
+  resolution: "electron-localshortcut@https://github.com/fanzeng/electron-localshortcut.git#commit=98c97b87267f49019c67d298d67a2de470b0452a"
   dependencies:
     debug: "npm:^4.0.1"
     electron-is-accelerator: "npm:^0.1.0"
     keyboardevent-from-electron-accelerator: "npm:^2.0.0"
     keyboardevents-areequal: "npm:^0.2.1"
-  checksum: 10/c3e9d160f8af45dbeb72917b6d30cb6220b6ba55c94ab578d81e236b054db23ef64abc3ab51d226f693cccf8b6a0d79170331e4fc26dc3c1dfec53e2091013f2
+  checksum: 10/44eee2590eda49b6e46a0b7b9a6d1e3a67acef0556dc49247087ab98ec79da695ad9d8e9a9e5eb394a2c33496370c6427bade5b949bb8731b71ea11bf847e65e
   languageName: node
   linkType: hard
 
@@ -3221,7 +3221,7 @@ __metadata:
     cssnano-preset-advanced: "npm:^7.0.5"
     electron: "npm:^31.3.1"
     electron-builder: "npm:^24.13.3"
-    electron-localshortcut: "npm:^3.2.1"
+    electron-localshortcut: "https://github.com/fanzeng/electron-localshortcut#fan/fix-omitted-window-arg-issue"
     electron-log: "npm:^5.1.7"
     electron-store: "npm:^8.2.0"
     electron-tabs: "npm:^1.0.4"
