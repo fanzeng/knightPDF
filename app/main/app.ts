@@ -416,6 +416,7 @@ app.whenReady().then(() => {
       }).show();
     });
   }
+
   const sm: MenuItemConstructorOptions[] = [];
   for (const action of keybinds.actions) {
     const kb = keybinds.getActionKeybindsTrigger(action);

@@ -110,7 +110,6 @@ async function openFile(
           resolved_file,
         )}`;
       }
-
       const tab = tabGroup?.addTab(entry);
       const webview = tab?.webview as webviewTag;
       webview.addEventListener("will-navigate", (e) => {
