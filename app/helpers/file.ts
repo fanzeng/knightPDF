@@ -1,5 +1,5 @@
 import type { TabGroup, Tab } from "electron-tabs";
-import { setupSliders, setupTab } from "./private";
+import { setupSliders, setupTab, focusTab } from "./private";
 
 async function openFile(
   files: string | string[] | FileList,
@@ -97,6 +97,7 @@ async function openFile(
             );
             slidersInitialized = true;
           }
+          focusTab(tab);
         },
       };
       if (pageArg) {
@@ -108,16 +109,8 @@ async function openFile(
           resolved_file,
         )}`;
       }
-      const focusTab = (tab: Tab) => {
-        const webview = tab.webview as Electron.WebviewTag;
-        const iframe = webview.shadowRoot?.querySelector("iframe");
-        if (iframe) {
-          iframe.focus();
-        }
-      };
 
       const tab = tabGroup?.addTab(entry);
-      focusTab(tab);
       const webview = tab?.webview as webviewTag;
       webview.addEventListener("will-navigate", (e) => {
         const event = e as EventNav;

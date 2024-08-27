@@ -25,7 +25,7 @@ import { handlePresetChange } from "../helpers/sliders";
 import { hideDarkConfigurator, toggleDarkConfigurator } from "../helpers/css";
 import { openFile } from "../helpers/file";
 import type { Keybinds, NightPDFSettings } from "../helpers/settings";
-import { WebviewTag } from "electron";
+import { focusTab } from "../helpers/private";
 
 declare global {
   interface Window {
@@ -62,14 +62,6 @@ declare global {
     url: string;
   }
 }
-
-const focusTab = (tab: Tab) => {
-  const webview = tab.webview as Electron.WebviewTag;
-  const iframe = webview.shadowRoot?.querySelector("iframe");
-  if (iframe) {
-    iframe.focus();
-  }
-};
 
 async function nightPDF() {
   console.log("loading");

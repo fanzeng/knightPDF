@@ -437,12 +437,12 @@ app.whenReady().then(() => {
   }
 
   // register Ctrl+1 to Ctrl+9 shortcuts
-  let meta = "Ctrl";
+  let k = "Ctrl";
   if (process.platform === "darwin") {
-    meta = "Cmd";
+    k = "Cmd";
   }
   for (let i = 1; i <= 9; i++) {
-    const acc = `${meta}+${i}`;
+    const acc = `${k}+${i}`;
     const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
       console.log(focusedWin);

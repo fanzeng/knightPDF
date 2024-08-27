@@ -31,6 +31,14 @@ function _try(func: CallableFunction, fallbackValue: number) {
   }
 }
 
+const focusTab = (tab: Tab) => {
+  const webview = tab.webview as Electron.WebviewTag;
+  const iframe = webview.shadowRoot?.querySelector("iframe");
+  if (iframe) {
+    iframe.focus();
+  }
+};
+
 function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
   tab.once("webview-dom-ready", () => {
     const content = tab.webview;
@@ -46,10 +54,15 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
     style += "border-image: none;";
     style += "}";
     // @ts-ignore
-    content?.insertCSS(style).then((key: string) => {
-      console.info("inserted style", key);
-      tabCssKey.set(tab, key);
-    });
+    content
+      ?.insertCSS(style)
+      .then((key: string) => {
+        console.info("inserted style", key);
+        tabCssKey.set(tab, key);
+      })
+      .then(() => {
+        focusTab(tab);
+      });
     // .viewerContainer scrollbar dark colors
     content
       ?.insertCSS(
@@ -80,6 +93,7 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
       )
       .then((key: string) => {
         console.info("inserted style", key);
+        focusTab(tab);
       });
   });
   tab.on("close", (tab: Tab) => {
@@ -323,4 +337,4 @@ function setupSliders(
   });
 }
 
-export { setupSliders, setupTab };
+export { setupSliders, setupTab, focusTab };
