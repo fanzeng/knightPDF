@@ -1,4 +1,7 @@
-# NightPDF
+# knightPDF
+This is a fork of "NightPDF".
+The original author Lunarequest has decided to archive the "NightPDF" project.
+As per their request, the name of the project is changed when the fork is created.
 
 Dark Mode PDF reader
 
@@ -12,8 +15,12 @@ It uses Electron but my eyes dont care.
 
 Binaries for Linux, Macos and Windows
 
--   [Latest release](https://github.com/Lunarequest/NightPDF/releases/latest)
+-   [Latest release](https://github.com/fanzeng/knightPDF/releases/latest)
 <br/>
+<br/>
+
+The flathub link is maintained by Lunarquest and probably constains builds for the original project.
+At this point in time, you'd need to build this fork from source.
 <br/>
 <a href='https://flathub.org/apps/io.github.lunarequest.NightPDF'><img width='240' alt='Download on Flathub' src='https://dl.flathub.org/assets/badges/flathub-badge-en.png'/></a>
 
