@@ -280,7 +280,8 @@ async function nightPDF() {
       }
       if (target) {
         target.activate();
-        const webview = tab.webview as Electron.WebviewTag;
+        focusTab(target);
+      } else {
         focusTab(tab);
       }
     }

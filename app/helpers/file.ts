@@ -50,6 +50,7 @@ async function openFile(
         fileAlreadyOpen = true;
         console.info("file already open");
         tab.activate();
+        focusTab(tab);
       }
     });
 

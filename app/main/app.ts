@@ -445,7 +445,6 @@ app.whenReady().then(() => {
     const acc = `${k}+${i}`;
     const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
-      console.log(focusedWin);
       if (focusedWin) {
         focusedWin.webContents.send("switch-tab", i);
       }
@@ -460,7 +459,7 @@ app.whenReady().then(() => {
   const menu = Menu.getApplicationMenu() || new Menu();
   menu.append(
     new MenuItem({
-      label: "Navigation",
+      label: "Navigate",
       submenu: sm,
     }),
   );
