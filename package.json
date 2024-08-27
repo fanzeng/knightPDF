@@ -1,13 +1,13 @@
 {
-  "name": "nightpdf",
+  "name": "knightpdf",
   "version": "v3.0.0-beta5",
   "description": "Dark Mode for PDFs",
   "main": "out/main/app.js",
   "packageManager": "yarn@4.1.1",
-  "repository": "https://github.com/Lunarequest/NightPDF",
-  "homepage": "https://github.com/Lunarequest/NightPDF#readme",
+  "repository": "https://github.com/fanzeng/knightPDF",
+  "homepage": "https://github.com/fanzeng/knightPDF#readme",
   "bugs": {
-    "url": "https://github.com/Lunarequest/NightPDF/issues",
+    "url": "https://github.com/fanzeng/knightPDF/issues",
     "email": "nullrequest@vivaldi.net"
   },
   "scripts": {
@@ -54,7 +54,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "electron-localshortcut": "https://github.com/fanzeng/electron-localshortcut#fan/fix-omitted-window-arg-issue",
+    "electron-localshortcut": "^3.2.1",
     "electron-log": "^5.1.7",
     "electron-store": "^8.2.0",
     "electron-tabs": "^1.0.4",
