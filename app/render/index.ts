@@ -34,6 +34,7 @@ declare global {
       getFileName(arg0: string): Promise<string>;
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
+      SetFiles(files: string[]): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
@@ -159,6 +160,10 @@ async function nightPDF() {
         files = msg;
       }
 
+      if (files?.length > 0) {
+        splashElement.style.display = "none";
+      }
+
       const settings = await window.api.GetSettings();
 
       await openFile(
@@ -202,6 +207,8 @@ async function nightPDF() {
     const tab = tabGroup?.getActiveTab();
     if (tab) {
       console.log("Closing active tab.");
+      console.log("tab is ", tab);
+      window.api.SetFiles([]);
       tab.close(false);
     }
   });

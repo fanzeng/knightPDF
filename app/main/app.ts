@@ -266,6 +266,13 @@ function createWindow(
         store.set(settingGroup, storeSettings);
       },
     );
+    ipcMain.handle("SetFiles", (_e: IpcMainInvokeEvent, files: string[]) => {
+      if (files && files.length > 0) {
+        store.set("files", files);
+      } else {
+        store.delete("files");
+      }
+    });
 
     ipcMain.handle("GetSettings", (_e: IpcMainInvokeEvent) => {
       return store.store;
@@ -298,6 +305,7 @@ function createWindow(
               }
             }
           }
+          store.set("files", filenames);
         }
       });
   };
@@ -389,6 +397,10 @@ app.whenReady().then(() => {
     store.get("keybinds") as Record<string, Keybinds>,
     process.platform,
   );
+  if (!fileToOpen) {
+    fileToOpen = store.get("files");
+    console.log("fileToOpen =", fileToOpen);
+  }
   if (fileToOpen) {
     if (typeof fileToOpen === "string") {
       fileToOpen.replace("file://", "");
@@ -429,7 +441,11 @@ app.whenReady().then(() => {
         );
       }
     };
-    localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
+    try {
+      localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
+    } catch (e) {
+      console.log(e);
+    }
     sm.push({
       label: action,
       accelerator: kb?.length > 0 ? kb[0] : "",
