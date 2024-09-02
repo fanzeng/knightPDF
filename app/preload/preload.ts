@@ -40,8 +40,8 @@ contextBridge.exposeInMainWorld("api", {
     return ipcRenderer.invoke("GetSettings");
   },
 
-  SetFiles: () => {
-    return ipcRenderer.invoke("SetFiles");
+  SetOpenedFiles: (openedFiles: string[]) => {
+    return ipcRenderer.invoke("SetOpenedFiles", openedFiles);
   },
 
   removeAllListeners: (ListenerType: string) => {

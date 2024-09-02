@@ -266,13 +266,16 @@ function createWindow(
         store.set(settingGroup, storeSettings);
       },
     );
-    ipcMain.handle("SetFiles", (_e: IpcMainInvokeEvent, files: string[]) => {
-      if (files && files.length > 0) {
-        store.set("files", files);
-      } else {
-        store.delete("files");
-      }
-    });
+    ipcMain.handle(
+      "SetOpenedFiles",
+      (_e: IpcMainInvokeEvent, openedFiles: string[]) => {
+        if (openedFiles && openedFiles.length > 0) {
+          store.set("openedFiles", openedFiles);
+        } else {
+          store.set("openedFiles", []);
+        }
+      },
+    );
 
     ipcMain.handle("GetSettings", (_e: IpcMainInvokeEvent) => {
       return store.store;
@@ -305,7 +308,11 @@ function createWindow(
               }
             }
           }
-          store.set("files", filenames);
+          const openedFiles = store.get("openedFiles");
+          store.set(
+            "openedFiles",
+            Array.from(new Set(openedFiles.concat(filenames))),
+          );
         }
       });
   };
@@ -398,7 +405,7 @@ app.whenReady().then(() => {
     process.platform,
   );
   if (!fileToOpen) {
-    fileToOpen = store.get("files");
+    fileToOpen = store.get("openedFiles");
     console.log("fileToOpen =", fileToOpen);
   }
   if (fileToOpen) {
@@ -441,11 +448,11 @@ app.whenReady().then(() => {
         );
       }
     };
-    try {
-      localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
-    } catch (e) {
-      console.log(e);
-    }
+    // try {
+    //   localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
+    // } catch (e) {
+    //   console.log(e);
+    // }
     sm.push({
       label: action,
       accelerator: kb?.length > 0 ? kb[0] : "",

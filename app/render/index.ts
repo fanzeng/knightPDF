@@ -34,7 +34,7 @@ declare global {
       getFileName(arg0: string): Promise<string>;
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
-      SetFiles(files: string[]): Promise<null>;
+      SetOpenedFiles(openedFiles: string[]): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
@@ -203,12 +203,19 @@ async function nightPDF() {
 
   // close-tab event
   window.api.removeAllListeners("close-tab");
-  window.api.on("close-tab", (_e: Event, _msg: string) => {
+  window.api.on("close-tab", async (_e: Event, _msg: string) => {
     const tab = tabGroup?.getActiveTab();
     if (tab) {
       console.log("Closing active tab.");
       console.log("tab is ", tab);
-      window.api.SetFiles([]);
+      // let closed = sessionStorage.getItem(tab.id.toString());
+      let closed = tabFilePath.get(tab);
+      const settings = await window.api.GetSettings();
+      let files = [...settings.openedFiles];
+      let openedFiles = files.filter((f) => {
+        return f != closed;
+      });
+      await window.api.SetOpenedFiles(openedFiles);
       tab.close(false);
     }
   });
@@ -243,6 +250,9 @@ async function nightPDF() {
             null,
             debug,
           );
+          let openedFiles = (await window.api.GetSettings()).openedFiles;
+          openedFiles.push(lastClosedFile);
+          window.api.SetOpenedFiles(openedFiles);
         }
       }
     },

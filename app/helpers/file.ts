@@ -112,6 +112,8 @@ async function openFile(
       }
       const tab = tabGroup?.addTab(entry);
       const webview = tab?.webview as webviewTag;
+      // sessionStorage.setItem(tab.id.toString(), path);
+      tabFilePath.set(tab, path);
       webview.addEventListener("will-navigate", (e) => {
         const event = e as EventNav;
         const url = event.url;
