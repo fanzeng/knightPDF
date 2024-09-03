@@ -1,5 +1,5 @@
 <!--
-NightPDF Dark mode for Pdfs    
+NightPDF Dark mode for Pdfs
 Copyright (C) 2021  Advaith Madhukar
 
 This program is free software; you can redistribute it and/or
@@ -16,99 +16,121 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
-<!DOCTYPE html>
+<!doctype html>
 <html>
-	<head>
-		<meta charset="UTF-8" />
-		<title>NightPDF</title>
-		<link href="./css/index.css" rel="stylesheet" />
-		<!-- https://electronjs.org/docs/tutorial/security#csp-meta-tag -->
-		<meta
-			http-equiv="Content-Security-Policy"
-			content="script-src 'self';"
-		/>
-	</head>
-	<body>
-		<div id="header">
-			<tab-group new-tab-button="true" sortable="true">
-				<style>
-					/* Make tabs dark 
-					
+    <head>
+        <meta charset="UTF-8" />
+        <title>knightPDF</title>
+        <link href="./css/index.css" rel="stylesheet" />
+        <!-- https://electronjs.org/docs/tutorial/security#csp-meta-tag -->
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="script-src 'self';"
+        />
+    </head>
+    <body>
+        <div id="header">
+            <div class="container">
+                <tab-group new-tab-button="true" sortable="true">
+                    <style>
+                        /* Make tabs dark
+
 					   Ideally these should be variables that are set somewhere else, but
 					   they also must remain in this <style> block inside the <tab-group>
 					   element. This is because the <tab-group> element is a web component
 					   and the shadow dom prevents styles from leaking out.
 					*/
-					:host {
-						--tabgroup-background: #2d2d2d;
-						--tab-background: #2d2d2d;
-						--tab-color: #cccccc;
-						--tab-border-color: #1e1e1e;
-						--tab-active-background: #1e1e1e;
-						--tag-hover-background: #1e1e1e;
-						--button-font-size: 15px;
-						--button-background: none;
-						--button-color: #777777;
-						--button-hover-background: #cccccc;
-						--button-hover-color: #383a3e;
-						--badge-background: #383a3e;
-						--badge-color: #fff;
-						--tab-border: none;
-					}
-					.tabs > .tab.document-tab {
-						max-width: 15vw;
-						text-align: right;
-						white-space: nowrap;
-						overflow: hidden;
-						text-overflow: ellipsis;
-					}
-
-					.tabs > .tab.document-tab > .tab-title {
-						display: inline-block;
-						direction: rtl;
-						text-align: right;
-						white-space: nowrap;
-						max-width: calc(15vw - 20px);
-						overflow: hidden;
-					}
-				  </style>
-			</tab-group>
-			<div id="menu">
-				<div id="default-button" class="button active">Default</div>
-				<div id="sepia-button" class="button">Sepia</div>
-				<div id="redeye-button" class="button">Redeye</div>
-				<div id="custom-button" class="button">Custom</div>
-			</div>
-		</div>
-		<div id="darkConfigurator">
-			<h3>Settings</h3>
-			<div id="slides">
-				<label>Darkness</label>
-				<div id="brightnessSlider"></div>
-				<label>Grayscale</label>
-				<div id="grayscaleSlider"></div>
-				<label>Inversion</label>
-				<div id="invertSlider"></div>
-				<label>Sepia</label>
-				<div id="sepiaSlider"></div>
-				<label>Hue</label>
-				<div id="hueSlider"></div>
-				<label>Brightness</label>
-				<div id="extraBrightnessSlider"></div>
-			</div>
-		</div>
-		<div id="appContainer">
-		</div>
-		<div id="splash-container">
-			<div id="splash">
-				<img src="assets/icon2.png" width="100px" />
-				<h3>Drop PDF here</h3>
-			</div>
-			<div id="splash-extra">
-				<h3 id="prompt">Open File with CTRL+O</h3>
-			</div>
-		</div>
-		<script type="module" src="./render/index.js"></script>
-	</body>
-<!--trans rights-->
+                        :host {
+                            --tabgroup-background: #2d2d2d;
+                            --tab-background: #2d2d2d;
+                            --tab-color: #cccccc;
+                            --tab-border-color: #1e1e1e;
+                            --tab-active-background: #1e1e1e;
+                            --tag-hover-background: #1e1e1e;
+                            --button-font-size: 15px;
+                            --button-background: none;
+                            --button-color: #777777;
+                            --button-hover-background: #cccccc;
+                            --button-hover-color: #383a3e;
+                            --badge-background: #383a3e;
+                            --badge-color: #fff;
+                            --tab-border: none;
+                        }
+                        .tabs > .tab.document-tab {
+                            max-width: 15vw;
+                            text-align: right;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .tabs > .tab.document-tab > .tab-title {
+                            display: inline-block;
+                            direction: rtl;
+                            text-align: right;
+                            white-space: nowrap;
+                            max-width: calc(10vw - 20px);
+                            overflow: hidden;
+                        }
+                    </style>
+                </tab-group>
+                <div id="menu">
+                    <div id="default-button" class="button active">Default</div>
+                    <div id="sepia-button" class="button">Sepia</div>
+                    <div id="invert-button" class="button">Invert</div>
+                    <div id="custom-button" class="button">Custom</div>
+                </div>
+                <style>
+                    .container {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+                    tab-group {
+                        width: 85vw;
+                        flex-grow: 1;
+                        overflow-x: auto;
+                        overflow-y: auto;
+                        display: flex;
+                        flex-wrap: nowrap;
+                        white-space: nowrap;
+                    }
+                    tab-group::-webkit-scrollbar {
+                        display: none;
+                    }
+                    #menu {
+                        width: 15vw;
+                    }
+                </style>
+            </div>
+        </div>
+        <div id="darkConfigurator">
+            <h3>Settings</h3>
+            <div id="slides">
+                <label>Darkness</label>
+                <div id="brightnessSlider"></div>
+                <label>Grayscale</label>
+                <div id="grayscaleSlider"></div>
+                <label>Inversion</label>
+                <div id="invertSlider"></div>
+                <label>Sepia</label>
+                <div id="sepiaSlider"></div>
+                <label>Hue</label>
+                <div id="hueSlider"></div>
+                <label>Brightness</label>
+                <div id="extraBrightnessSlider"></div>
+            </div>
+        </div>
+        <div id="appContainer"></div>
+        <div id="splash-container">
+            <div id="splash">
+                <img src="assets/icon2.png" width="100px" />
+                <h3>Drop PDF here</h3>
+            </div>
+            <div id="splash-extra">
+                <h3 id="prompt">Open File with Ctrl/Cmd+O</h3>
+            </div>
+        </div>
+        <script type="module" src="./render/index.js"></script>
+    </body>
+    <!--trans rights-->
 </html>

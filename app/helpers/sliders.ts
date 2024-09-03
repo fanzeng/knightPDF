@@ -31,12 +31,12 @@ function handlePresetChange(
       hue.set(0);
       extraBrightness.set(0);
       break;
-    case "redeye":
+    case "invert":
       brightness.set(8);
-      grayness.set(100);
-      inversion.set(92);
-      sepia.set(100);
-      hue.set(295);
+      grayness.set(0);
+      inversion.set(80);
+      sepia.set(0);
+      hue.set(0);
       extraBrightness.set(-6);
       break;
     case "sepia":

@@ -8,7 +8,6 @@ function openSettings() {
   if (focusedWin) {
     const win = new BrowserWindow({
       parent: focusedWin,
-      modal: true,
       icon: join(__dirname, "../assets/icon.png"),
       webPreferences: {
         preload: resolve(join(__dirname, "../preload/preload.js")),

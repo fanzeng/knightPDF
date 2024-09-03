@@ -5,6 +5,7 @@ type NightPDFSettings = JSONSchema & {
   version: string;
   general: Record<string, boolean>;
   keybinds: Record<string, Keybinds>;
+  openedFiles: string[];
 };
 
 // kebind config
@@ -287,6 +288,9 @@ const nightpdf_schema: Schema<NightPDFSettings> = {
     },
     type: "object",
   },
+  openedFiles: {
+    type: "array",
+  },
 };
 
 function nightpdf_default_settings(version: string): NightPDFSettings {
@@ -355,6 +359,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
         displayName: "Move Tab to End",
       },
     },
+    openedFiles: [],
   };
 }
 

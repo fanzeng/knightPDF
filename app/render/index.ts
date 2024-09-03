@@ -34,6 +34,7 @@ declare global {
       getFileName(arg0: string): Promise<string>;
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
+      SetOpenedFiles(openedFiles: string[]): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
@@ -101,8 +102,8 @@ async function nightPDF() {
   const sepiaButton: HTMLElement = document.getElementById(
     "sepia-button",
   ) as HTMLElement;
-  const redeyeButton: HTMLElement = document.getElementById(
-    "redeye-button",
+  const invertButton: HTMLElement = document.getElementById(
+    "invert-button",
   ) as HTMLElement;
   const customButton: HTMLElement = document.getElementById(
     "custom-button",
@@ -159,6 +160,10 @@ async function nightPDF() {
         files = msg;
       }
 
+      if (files?.length > 0) {
+        splashElement.style.display = "none";
+      }
+
       const settings = await window.api.GetSettings();
 
       await openFile(
@@ -198,10 +203,19 @@ async function nightPDF() {
 
   // close-tab event
   window.api.removeAllListeners("close-tab");
-  window.api.on("close-tab", (_e: Event, _msg: string) => {
+  window.api.on("close-tab", async (_e: Event, _msg: string) => {
     const tab = tabGroup?.getActiveTab();
     if (tab) {
       console.log("Closing active tab.");
+      console.log("tab is ", tab);
+      // let closed = sessionStorage.getItem(tab.id.toString());
+      const closed = tabFilePath.get(tab);
+      const settings = await window.api.GetSettings();
+      const files = [...settings.openedFiles];
+      const openedFiles = files.filter((f) => {
+        return f !== closed;
+      });
+      await window.api.SetOpenedFiles(openedFiles);
       tab.close(false);
     }
   });
@@ -236,6 +250,9 @@ async function nightPDF() {
             null,
             debug,
           );
+          const openedFiles = (await window.api.GetSettings()).openedFiles;
+          openedFiles.push(lastClosedFile);
+          window.api.SetOpenedFiles(openedFiles);
         }
       }
     },
@@ -333,7 +350,7 @@ async function nightPDF() {
     } else {
       defaultButton.className = "button active";
       sepiaButton.className = "button";
-      redeyeButton.className = "button";
+      invertButton.className = "button";
       customButton.className = "button";
       handlePresetChange(
         "default",
@@ -355,7 +372,7 @@ async function nightPDF() {
     } else {
       defaultButton.className = "button";
       sepiaButton.className = "button active";
-      redeyeButton.className = "button";
+      invertButton.className = "button";
       customButton.className = "button";
       handlePresetChange(
         "sepia",
@@ -369,18 +386,18 @@ async function nightPDF() {
     }
     e.stopPropagation();
   });
-  redeyeButton.addEventListener("click", (e: Event) => {
+  invertButton.addEventListener("click", (e: Event) => {
     // do default styling
     // only display menu if active
-    if (redeyeButton.className.includes("active")) {
+    if (invertButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
       defaultButton.className = "button";
       sepiaButton.className = "button";
-      redeyeButton.className = "button active";
+      invertButton.className = "button active";
       customButton.className = "button";
       handlePresetChange(
-        "redeye",
+        "invert",
         brightnessSliderElement,
         grayscaleSliderElement,
         invertSliderElement,
@@ -398,7 +415,7 @@ async function nightPDF() {
     if (!customButton.className.includes("active")) {
       defaultButton.className = "button";
       sepiaButton.className = "button";
-      redeyeButton.className = "button";
+      invertButton.className = "button";
       customButton.className = "button active";
       handlePresetChange(
         "original",
