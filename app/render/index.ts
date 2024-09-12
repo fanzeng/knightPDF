@@ -96,14 +96,14 @@ async function nightPDF() {
   const splashElement: HTMLElement = document.getElementById(
     "splash-container",
   ) as HTMLElement;
-  const defaultButton: HTMLElement = document.getElementById(
-    "default-button",
+  const crispyButton: HTMLElement = document.getElementById(
+    "crispy-button",
   ) as HTMLElement;
   const sepiaButton: HTMLElement = document.getElementById(
     "sepia-button",
   ) as HTMLElement;
-  const invertButton: HTMLElement = document.getElementById(
-    "invert-button",
+  const gentleButton: HTMLElement = document.getElementById(
+    "gentle-button",
   ) as HTMLElement;
   const customButton: HTMLElement = document.getElementById(
     "custom-button",
@@ -342,18 +342,16 @@ async function nightPDF() {
   });
 
   // setup dom listeners
-  defaultButton.addEventListener("click", (e: Event) => {
-    // do default styling
-
-    if (defaultButton.className.includes("active")) {
+  crispyButton.addEventListener("click", (e: Event) => {
+    if (crispyButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      defaultButton.className = "button active";
+      crispyButton.className = "button active";
       sepiaButton.className = "button";
-      invertButton.className = "button";
+      gentleButton.className = "button";
       customButton.className = "button";
       handlePresetChange(
-        "default",
+        "crispy",
         brightnessSliderElement,
         grayscaleSliderElement,
         invertSliderElement,
@@ -366,13 +364,12 @@ async function nightPDF() {
     e.stopPropagation();
   });
   sepiaButton.addEventListener("click", (e: Event) => {
-    // do default styling
     if (sepiaButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      defaultButton.className = "button";
+      crispyButton.className = "button";
       sepiaButton.className = "button active";
-      invertButton.className = "button";
+      gentleButton.className = "button";
       customButton.className = "button";
       handlePresetChange(
         "sepia",
@@ -386,18 +383,17 @@ async function nightPDF() {
     }
     e.stopPropagation();
   });
-  invertButton.addEventListener("click", (e: Event) => {
-    // do default styling
+  gentleButton.addEventListener("click", (e: Event) => {
     // only display menu if active
-    if (invertButton.className.includes("active")) {
+    if (gentleButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      defaultButton.className = "button";
+      crispyButton.className = "button";
       sepiaButton.className = "button";
-      invertButton.className = "button active";
+      gentleButton.className = "button active";
       customButton.className = "button";
       handlePresetChange(
-        "invert",
+        "gentle",
         brightnessSliderElement,
         grayscaleSliderElement,
         invertSliderElement,
@@ -410,12 +406,11 @@ async function nightPDF() {
   });
 
   customButton.addEventListener("click", (e: Event) => {
-    // do default styling
     // always display menu
     if (!customButton.className.includes("active")) {
-      defaultButton.className = "button";
+      crispyButton.className = "button";
       sepiaButton.className = "button";
-      invertButton.className = "button";
+      gentleButton.className = "button";
       customButton.className = "button active";
       handlePresetChange(
         "original",
