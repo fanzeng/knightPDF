@@ -50,7 +50,7 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
     content?.executeJavaScript(keyInterceptor);
     let style = "div#viewer .page {";
     style +=
-      "filter: brightness(0.91) grayscale(0.95) invert(0.95) sepia(0.55) hue-rotate(180deg);";
+      "filter: brightness(0.92) grayscale(0.0) invert(0.8) hue-rotate(180deg) brightness(0.7);";
     style += "border-image: none;";
     style += "}";
     // @ts-ignore
