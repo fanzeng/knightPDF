@@ -36,8 +36,8 @@ function handlePresetChange(
       grayness.set(0);
       inversion.set(80);
       sepia.set(0);
-      hue.set(0);
-      extraBrightness.set(-6);
+      hue.set(180);
+      extraBrightness.set(-30);
       break;
     case "sepia":
       brightness.set(0);
