@@ -1,6 +1,6 @@
 {
   "name": "knightpdf",
-  "version": "v3.0.0-beta5",
+  "version": "v3.0.0-beta6",
   "description": "Dark Mode for PDFs",
   "main": "out/main/app.js",
   "packageManager": "yarn@4.1.1",
