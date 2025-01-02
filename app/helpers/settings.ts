@@ -277,7 +277,7 @@ const nightpdf_schema: Schema<NightPDFSettings> = {
   keybinds: {
     properties: {
       OpenWindow: keybindPropertyDef(),
-      CloseWindow: keybindPropertyDef(),
+      CloseTab: keybindPropertyDef(),
       ReOpen: keybindPropertyDef(),
       SwitchTab: keybindPropertyDef(),
       PreviousTab: keybindPropertyDef(),
@@ -302,17 +302,20 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
     },
     keybinds: {
       OpenWindow: {
-        keybind: KeybindHelper.keybindFromTriggerArray(["Ctrl+T"]),
+        keybind: KeybindHelper.keybindFromTriggerArray(["CmdOrCtrl+t"]),
         action: "openNewPDF",
         displayName: "Open New PDF",
       },
-      CloseWindow: {
-        keybind: KeybindHelper.keybindFromTriggerArray(["Ctrl+w", "Ctrl+F4"]),
+      CloseTab: {
+        keybind: KeybindHelper.keybindFromTriggerArray([
+          "CmdOrCtrl+w",
+          "Ctrl+F4",
+        ]),
         action: "close-tab",
         displayName: "Close Tab",
       },
       ReOpen: {
-        keybind: KeybindHelper.keybindFromTriggerArray(["Ctrl+Shift+T"]),
+        keybind: KeybindHelper.keybindFromTriggerArray(["CmdOrCtrl+Shift+t"]),
         action: "reopen-tab",
         displayName: "Reopen Tab",
       },
@@ -365,8 +368,8 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
 
 // The modifier keys allowed in NightPDF
 const ModifierKeys: ModifierKeyMap = {
-  CommandOrControl: {
-    savesAs: "Ctrl",
+  CmdOrCtrl: {
+    savesAs: "CmdOrCtrl",
     osDependent: true,
     osVariants: {
       darwin: "⌘",
