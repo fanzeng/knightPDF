@@ -135,6 +135,17 @@ async function nightPDF() {
       },
       true,
     );
+    // Listen for the tab-removed event
+    tabGroup?.on("tab-removed", async (tab, tabGroup) => {
+      console.log(`Tab with title "${tab.title}" was closed.`);
+      const closed = tabFilePath.get(tab);
+      const settings = await window.api.GetSettings();
+      const files = [...settings.openedFiles];
+      const openedFiles = files.filter((f) => {
+        return f !== closed;
+      });
+      await window.api.SetOpenedFiles(openedFiles);
+    });
   });
 
   //setup electron listeners
@@ -208,14 +219,6 @@ async function nightPDF() {
     if (tab) {
       console.log("Closing active tab.");
       console.log("tab is ", tab);
-      // let closed = sessionStorage.getItem(tab.id.toString());
-      const closed = tabFilePath.get(tab);
-      const settings = await window.api.GetSettings();
-      const files = [...settings.openedFiles];
-      const openedFiles = files.filter((f) => {
-        return f !== closed;
-      });
-      await window.api.SetOpenedFiles(openedFiles);
       tab.close(false);
     }
   });
