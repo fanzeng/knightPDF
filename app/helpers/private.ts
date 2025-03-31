@@ -1,4 +1,5 @@
 import type { TabGroup, Tab } from "electron-tabs";
+import { WebviewTag } from "electron/renderer";
 import { create } from "nouislider";
 
 // Code to inject into the webview, to prevent jsPDF from intercepting keybinds

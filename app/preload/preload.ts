@@ -44,6 +44,12 @@ contextBridge.exposeInMainWorld("api", {
     return ipcRenderer.invoke("SetOpenedFiles", openedFiles);
   },
 
+  ReceivePageNumber: (filename: string, pageNumber: number) => {
+    console.log(filename);
+    console.log(pageNumber);
+    return ipcRenderer.invoke("ReceivePageNumber", filename, pageNumber);
+  },
+
   removeAllListeners: (ListenerType: string) => {
     ipcRenderer.removeAllListeners(ListenerType);
   },

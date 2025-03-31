@@ -24,7 +24,11 @@ import type { API } from "nouislider";
 import { handlePresetChange } from "../helpers/sliders";
 import { hideDarkConfigurator, toggleDarkConfigurator } from "../helpers/css";
 import { openFile } from "../helpers/file";
-import type { Keybinds, NightPDFSettings } from "../helpers/settings";
+import type {
+  Keybinds,
+  NightPDFSettings,
+  OpenedFile,
+} from "../helpers/settings";
 import { focusTab } from "../helpers/private";
 
 declare global {
@@ -34,7 +38,8 @@ declare global {
       getFileName(arg0: string): Promise<string>;
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
-      SetOpenedFiles(openedFiles: string[]): Promise<null>;
+      SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
+      ReceivePageNumber(filename: string, pageNumber: number): null;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
@@ -254,7 +259,11 @@ async function nightPDF() {
             debug,
           );
           const openedFiles = (await window.api.GetSettings()).openedFiles;
-          openedFiles.push(lastClosedFile);
+          const openedFile: OpenedFile = {
+            filename: lastClosedFile,
+            pageNumber: 0, // TODO: Fix this
+          };
+          openedFiles.push(openedFile);
           window.api.SetOpenedFiles(openedFiles);
         }
       }
@@ -437,13 +446,33 @@ async function nightPDF() {
     window.api.openNewPDF(null);
   });
 
-  window.addEventListener("blur", () => {
+  const getPageNumberFromHistory = (e: Event) => {
+    console.log(e);
+    console.log(e.currentTarget);
+    const target = e?.currentTarget as Window;
+    if (target?.localStorage) {
+      console.log(target.localStorage["pdfjs.history"]);
+      const history = target.localStorage["pdfjs.history"];
+      const parsedHistory = JSON.parse(history);
+      console.log(parsedHistory);
+      const historyLen = parsedHistory.files.length;
+      if (historyLen > 0) {
+        window.api.ReceivePageNumber(
+          "test file name",
+          parsedHistory.files[historyLen - 1].page,
+        );
+      }
+    }
+  };
+
+  window.addEventListener("blur", (e: Event) => {
     const activeElement = document.activeElement;
     if (activeElement) {
       if (activeElement.id === "pdfjs") {
         hideDarkConfigurator(darkConfiguratorElement);
       }
     }
+    getPageNumberFromHistory(e);
   });
 
   splashElement.ondrop = async (e: DragEvent, debug = false) => {

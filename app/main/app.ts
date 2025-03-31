@@ -46,6 +46,7 @@ import {
   type Keybinds,
   nightpdf_default_settings,
   KeybindsHelper,
+  type OpenedFile,
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
 import process from "node:process";
@@ -268,12 +269,22 @@ function createWindow(
     );
     ipcMain.handle(
       "SetOpenedFiles",
-      (_e: IpcMainInvokeEvent, openedFiles: string[]) => {
+      (_e: IpcMainInvokeEvent, openedFiles: (OpenedFile | string)[]) => {
         if (openedFiles && openedFiles.length > 0) {
           store.set("openedFiles", openedFiles);
         } else {
           store.set("openedFiles", []);
         }
+      },
+    );
+    ipcMain.handle(
+      "ReceivePageNumber",
+      (_e: IpcMainInvokeEvent, filename: string, pageNumber) => {
+        console.log(_e);
+        console.log(filename);
+        console.log("Current page is", pageNumber);
+        const openedFiles = store.get("openedFiles");
+        console.log("openedFiles =", openedFiles);
       },
     );
 
@@ -350,7 +361,7 @@ function createWindow(
   });
 }
 
-let fileToOpen: string | string[] = "";
+let fileToOpen: string | (OpenedFile | string)[] = "";
 let pageToOpen: number | null = null;
 
 const argv = yargs
@@ -408,19 +419,25 @@ app.whenReady().then(() => {
     fileToOpen = store.get("openedFiles");
     console.log("fileToOpen =", fileToOpen);
   }
+  let filenames: string | string[];
   if (fileToOpen) {
     if (typeof fileToOpen === "string") {
-      fileToOpen.replace("file://", "");
+      filenames = fileToOpen.replace("file://", "");
     } else {
-      let i: string;
-      for (i in fileToOpen) {
-        fileToOpen[i] = fileToOpen[i].replace("file://", "");
+      filenames = [];
+      for (const [index, item] of fileToOpen.entries()) {
+        if (typeof item === "string") {
+          filenames.push(item.replace("file://", ""));
+        } else {
+          filenames.push(item.filename.replace("file://", ""));
+          pageToOpen = item.pageNumber;
+        }
       }
     }
     if (pageToOpen) {
-      createWindow(fileToOpen, pageToOpen);
+      createWindow(filenames, pageToOpen);
     } else {
-      createWindow(fileToOpen);
+      createWindow(filenames);
     }
   } else {
     createWindow();
