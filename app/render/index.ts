@@ -63,6 +63,7 @@ declare global {
   interface webviewTag extends HTMLElement {
     getURL(): string;
     stop(): void;
+    executeJavaScript(s: string): Promise<unknown>;
   }
   interface EventNav extends Event {
     url: string;
@@ -146,8 +147,11 @@ async function nightPDF() {
       const closed = tabFilePath.get(tab);
       const settings = await window.api.GetSettings();
       const files = [...settings.openedFiles];
-      const openedFiles = files.filter((f) => {
-        return f !== closed;
+      const openedFiles = files.filter((f: string | OpenedFile) => {
+        return (
+          (typeof f === "string" && f !== closed) ||
+          (typeof f === "object" && f?.filename !== closed)
+        );
       });
       await window.api.SetOpenedFiles(openedFiles);
     });
@@ -159,15 +163,15 @@ async function nightPDF() {
     "file-open",
     async (
       _e: Event,
-      msg: string | [string, number] | [string],
+      msg: string | [string | string[], number | number[]] | [string],
       debug = false,
     ) => {
-      let page: number | null = null;
+      let page: number | number[] | null = null;
       let files: string | string[];
       if (
         Array.isArray(msg) &&
         msg.length === 2 &&
-        typeof msg[1] === "number"
+        (typeof msg[1] === "number" || Array.isArray(msg[1]))
       ) {
         page = msg[1];
         files = msg[0];
@@ -255,7 +259,7 @@ async function nightPDF() {
             extraBrightnessSliderElement,
             hueSliderElement,
             settings.general.DisplayThumbs,
-            null,
+            null, // TODO: Fix this
             debug,
           );
           const openedFiles = (await window.api.GetSettings()).openedFiles;
@@ -446,33 +450,13 @@ async function nightPDF() {
     window.api.openNewPDF(null);
   });
 
-  const getPageNumberFromHistory = (e: Event) => {
-    console.log(e);
-    console.log(e.currentTarget);
-    const target = e?.currentTarget as Window;
-    if (target?.localStorage) {
-      console.log(target.localStorage["pdfjs.history"]);
-      const history = target.localStorage["pdfjs.history"];
-      const parsedHistory = JSON.parse(history);
-      console.log(parsedHistory);
-      const historyLen = parsedHistory.files.length;
-      if (historyLen > 0) {
-        window.api.ReceivePageNumber(
-          "test file name",
-          parsedHistory.files[historyLen - 1].page,
-        );
-      }
-    }
-  };
-
-  window.addEventListener("blur", (e: Event) => {
+  window.addEventListener("blur", () => {
     const activeElement = document.activeElement;
     if (activeElement) {
       if (activeElement.id === "pdfjs") {
         hideDarkConfigurator(darkConfiguratorElement);
       }
     }
-    getPageNumberFromHistory(e);
   });
 
   splashElement.ondrop = async (e: DragEvent, debug = false) => {

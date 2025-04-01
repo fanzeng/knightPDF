@@ -20,7 +20,7 @@ async function openFile(
   hueSliderElement: HTMLElement,
   DisplayThumbs: boolean,
 
-  page: number | null = null,
+  page: number | number[] | null = null,
   debug = false,
 ) {
   let slidersInitialized: boolean;
@@ -39,7 +39,8 @@ async function openFile(
     // biome-ignore lint: ensure files is an array to use a for loop
     files = [files];
   }
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     const path = typeof file === "string" ? file : file.path;
     const resolved_file = await window.api.ResolvePath(path);
     const title = await window.api.getFileName(path);
@@ -55,9 +56,11 @@ async function openFile(
     });
 
     let pageArg = "";
-    if (page) {
-      pageArg = `page=${page}`;
+    if (Array.isArray(page) && i < page.length) {
+      pageArg = `page=${page[i]}`;
+      console.log("pageArg", pageArg);
     } else {
+      console.log("Cannot open to last visited pages:", file);
       pageArg = "";
     }
 

@@ -129,7 +129,7 @@ function setkeybind(id: string, command: Keybinds) {
 
 function createWindow(
   filename: string | string[] | null = null,
-  page: number | null = null,
+  page: number | number[] | null = null,
 ) {
   //force dark theme irespective of os theme
   //useful for linux since we don't have a standardised way of detecting dark theme
@@ -280,11 +280,17 @@ function createWindow(
     ipcMain.handle(
       "ReceivePageNumber",
       (_e: IpcMainInvokeEvent, filename: string, pageNumber) => {
-        console.log(_e);
-        console.log(filename);
-        console.log("Current page is", pageNumber);
         const openedFiles = store.get("openedFiles");
-        console.log("openedFiles =", openedFiles);
+        openedFiles.forEach((f, i) => {
+          if (typeof f === "string") {
+            if (f === filename) {
+              openedFiles[i] = { filename, pageNumber };
+            }
+          } else if (f.filename === filename) {
+            openedFiles[i] = { filename, pageNumber };
+          }
+        });
+        store.set("openedFiles", openedFiles);
       },
     );
 
@@ -362,7 +368,7 @@ function createWindow(
 }
 
 let fileToOpen: string | (OpenedFile | string)[] = "";
-let pageToOpen: number | null = null;
+let pageToOpen: number | number[] | null = null;
 
 const argv = yargs
   .scriptName("NightPDF")
@@ -425,12 +431,14 @@ app.whenReady().then(() => {
       filenames = fileToOpen.replace("file://", "");
     } else {
       filenames = [];
+      pageToOpen = [];
       for (const [index, item] of fileToOpen.entries()) {
         if (typeof item === "string") {
           filenames.push(item.replace("file://", ""));
         } else {
           filenames.push(item.filename.replace("file://", ""));
-          pageToOpen = item.pageNumber;
+          pageToOpen.push(item.pageNumber);
+          console.log("pageToOpen", pageToOpen);
         }
       }
     }
