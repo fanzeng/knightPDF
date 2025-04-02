@@ -56,7 +56,7 @@ async function openFile(
     });
 
     let pageArg = "";
-    if (Array.isArray(page) && i < page.length) {
+    if (Array.isArray(page) && i < page.length && page[i]) {
       pageArg = `page=${page[i]}`;
       console.log("pageArg", pageArg);
     } else {

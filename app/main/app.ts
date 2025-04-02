@@ -77,7 +77,7 @@ const store = makeStore({
   clearInvalidConfig: true,
 });
 
-let wins = [];
+let wins: BrowserWindow[] = [];
 let menuIsConfigured = false;
 
 const DEBUG = process.env.DEBUG;
@@ -178,7 +178,21 @@ function createWindow(
       }
     }
   });
-
+  win.once("close", (e) => {
+    e.preventDefault();
+    const focusedWin = BrowserWindow.getFocusedWindow();
+    if (focusedWin) {
+      focusedWin.webContents.send("blur-tab");
+    }
+    for (const win of wins) {
+      if (win && win.webContents) {
+        win.webContents.send("blur-tab");
+      }
+    }
+    setTimeout(() => {
+      win.close();
+    }, 10);
+  });
   win.once("closed", () => {
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time
@@ -435,6 +449,7 @@ app.whenReady().then(() => {
       for (const [index, item] of fileToOpen.entries()) {
         if (typeof item === "string") {
           filenames.push(item.replace("file://", ""));
+          pageToOpen.push(0);
         } else {
           filenames.push(item.filename.replace("file://", ""));
           pageToOpen.push(item.pageNumber);

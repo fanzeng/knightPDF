@@ -225,11 +225,38 @@ async function nightPDF() {
   window.api.removeAllListeners("close-tab");
   window.api.on("close-tab", async (_e: Event, _msg: string) => {
     const tab = tabGroup?.getActiveTab();
+    const webview = tab.webview as webviewTag;
+    if (webview) {
+      webview.focus();
+    }
+    const iframe = webview.shadowRoot?.querySelector("iframe");
+    if (iframe) {
+      iframe.focus();
+    }
+    webview.blur();
     if (tab) {
       console.log("Closing active tab.");
       console.log("tab is ", tab);
-      tab.close(false);
+      setTimeout(() => {
+        tab.close(false);
+      }, 10);
     }
+  });
+
+  // blur-tab event
+  window.api.removeAllListeners("blur-tab");
+  window.api.on("blur-tab", async (_e: Event, _msg: string) => {
+    console.log("blur tab called");
+    const tab = tabGroup?.getActiveTab();
+    const webview = tab.webview as webviewTag;
+    if (webview) {
+      webview.focus();
+    }
+    const iframe = webview.shadowRoot?.querySelector("iframe");
+    if (iframe) {
+      iframe.focus();
+    }
+    webview.blur();
   });
 
   // reopen-tab event

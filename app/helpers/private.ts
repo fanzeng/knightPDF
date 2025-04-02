@@ -23,13 +23,14 @@ document.addEventListener("keydown", handleKeys, true);
 `;
 
 const addPagechangeListener: string = `
-  console.log(window);
   let eventBus = window.PDFViewerApplication.eventBus;
-  console.log(eventBus);
   console.log(window.PDFViewerApplication.baseUrl);
   eventBus.on('pagechanging', (e) => {
     console.log('Current page:', e.pageNumber);
+    console.log(window)
     window.pageNumber = e.pageNumber;
+    window.focus();
+    window.blur();
   });
 `;
 
@@ -53,7 +54,7 @@ const focusTab = (tab: Tab) => {
 function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
   tab.once("webview-dom-ready", () => {
     const content = tab.webview;
-    if (debug) {
+    if (true || debug) {
       // @ts-ignore
       content?.openDevTools();
     }
@@ -107,16 +108,10 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
       .then((key: string) => {
         console.info("inserted style", key);
         content.addEventListener("blur", (e: FocusEvent) => {
-          console.log("blurred.");
-          return getPageNumber(e).then((pageNumber) => {
-            if (pageNumber && pageNumber > 0) {
-              getFilename(e).then((filename) => {
-                console.log("filename:", filename);
-                if (filename && (filename as string).length > 0)
-                  window.api.ReceivePageNumber(filename, pageNumber);
-              });
-            }
-          });
+          updatePageNumber(e);
+        });
+        content.addEventListener("mouseleave", (e: Event) => {
+          updatePageNumber(e);
         });
         focusTab(tab);
       });
@@ -381,7 +376,19 @@ const getPageNumberFromHistory = (e: FocusEvent) => {
   }
 };
 
-const getPageNumber = (e: FocusEvent): Promise<number | null> => {
+const updatePageNumber = (e: Event) => {
+  return getPageNumber(e).then((pageNumber) => {
+    if (pageNumber && pageNumber > 0) {
+      getFilename(e).then((filename) => {
+        console.log("filename:", filename);
+        if (filename && (filename as string).length > 0)
+          window.api.ReceivePageNumber(filename, pageNumber);
+      });
+    }
+  });
+};
+
+const getPageNumber = (e: Event): Promise<number | void> => {
   console.log(e);
   console.log(e.target);
   const webview = e.target as webviewTag;
@@ -405,7 +412,7 @@ const getPageNumber = (e: FocusEvent): Promise<number | null> => {
     });
 };
 
-const getFilename = (e: Event): Promise<string | null> => {
+const getFilename = (e: Event): Promise<string | void> => {
   console.log(e);
   console.log(e.currentTarget);
   const webview = e.target as webviewTag;
