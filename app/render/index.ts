@@ -39,7 +39,7 @@ declare global {
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
       SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
-      ReceivePageNumber(filename: string, pageNumber: number): null;
+      ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;

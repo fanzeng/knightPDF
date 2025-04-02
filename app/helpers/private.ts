@@ -357,14 +357,11 @@ function setupSliders(
 // This is not used at the moment.
 // It requires mapping between the fingerprint encoded by pdfjs and the filenames to work.
 const getPageNumberFromHistory = (e: FocusEvent) => {
-  console.log(e);
-  console.log(e.currentTarget);
   const target = e?.currentTarget as Window;
   if (target?.localStorage) {
     console.log(target.localStorage["pdfjs.history"]);
     const history = target.localStorage["pdfjs.history"];
     const parsedHistory = JSON.parse(history);
-    console.log(parsedHistory);
     const historyLen = parsedHistory.files.length;
     if (historyLen > 0) {
       // This won't work.
@@ -387,7 +384,7 @@ const updatePageNumber = (e: Event) => {
 const getPageNumber = (e: Event): Promise<number> => {
   const webview = e.target as webviewTag;
   if (!webview) {
-    return Promise.reject(1);
+    return Promise.reject(0);
   }
   return webview
     .executeJavaScript("window.pageNumber")
@@ -397,7 +394,7 @@ const getPageNumber = (e: Event): Promise<number> => {
         const pageNumber = Number.parseInt(page);
         return pageNumber;
       } catch {
-        console.error("pageNumber is not a integer:", p);
+        console.error("pageNumber is not an integer:", p);
         return 0;
       }
     })
