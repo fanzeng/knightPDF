@@ -185,7 +185,7 @@ function createWindow(
       focusedWin.webContents.send("blur-tab");
     }
     for (const win of wins) {
-      if (win && win.webContents) {
+      if (win?.webContents) {
         win.webContents.send("blur-tab");
       }
     }
@@ -453,7 +453,6 @@ app.whenReady().then(() => {
         } else {
           filenames.push(item.filename.replace("file://", ""));
           pageToOpen.push(item.pageNumber);
-          console.log("pageToOpen", pageToOpen);
         }
       }
     }

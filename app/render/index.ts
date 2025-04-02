@@ -235,8 +235,7 @@ async function nightPDF() {
     }
     webview.blur();
     if (tab) {
-      console.log("Closing active tab.");
-      console.log("tab is ", tab);
+      console.log("Closing active tab:", tab);
       setTimeout(() => {
         tab.close(false);
       }, 10);
@@ -246,7 +245,6 @@ async function nightPDF() {
   // blur-tab event
   window.api.removeAllListeners("blur-tab");
   window.api.on("blur-tab", async (_e: Event, _msg: string) => {
-    console.log("blur tab called");
     const tab = tabGroup?.getActiveTab();
     const webview = tab.webview as webviewTag;
     if (webview) {
@@ -286,13 +284,13 @@ async function nightPDF() {
             extraBrightnessSliderElement,
             hueSliderElement,
             settings.general.DisplayThumbs,
-            null, // TODO: Fix this
+            0,
             debug,
           );
           const openedFiles = (await window.api.GetSettings()).openedFiles;
           const openedFile: OpenedFile = {
             filename: lastClosedFile,
-            pageNumber: 0, // TODO: Fix this
+            pageNumber: 0,
           };
           openedFiles.push(openedFile);
           window.api.SetOpenedFiles(openedFiles);

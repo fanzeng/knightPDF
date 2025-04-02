@@ -24,10 +24,7 @@ document.addEventListener("keydown", handleKeys, true);
 
 const addPagechangeListener: string = `
   let eventBus = window.PDFViewerApplication.eventBus;
-  console.log(window.PDFViewerApplication.baseUrl);
   eventBus.on('pagechanging', (e) => {
-    console.log('Current page:', e.pageNumber);
-    console.log(window)
     window.pageNumber = e.pageNumber;
     window.focus();
     window.blur();
@@ -54,7 +51,7 @@ const focusTab = (tab: Tab) => {
 function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
   tab.once("webview-dom-ready", () => {
     const content = tab.webview;
-    if (true || debug) {
+    if (debug) {
       // @ts-ignore
       content?.openDevTools();
     }
@@ -380,7 +377,6 @@ const updatePageNumber = (e: Event) => {
   return getPageNumber(e).then((pageNumber) => {
     if (pageNumber && pageNumber > 0) {
       getFilename(e).then((filename) => {
-        console.log("filename:", filename);
         if (filename && (filename as string).length > 0)
           window.api.ReceivePageNumber(filename, pageNumber);
       });
@@ -388,9 +384,7 @@ const updatePageNumber = (e: Event) => {
   });
 };
 
-const getPageNumber = (e: Event): Promise<number | void> => {
-  console.log(e);
-  console.log(e.target);
+const getPageNumber = (e: Event): Promise<number> => {
   const webview = e.target as webviewTag;
   if (!webview) {
     return Promise.reject(1);
@@ -401,20 +395,19 @@ const getPageNumber = (e: Event): Promise<number | void> => {
       try {
         const page = p as string;
         const pageNumber = Number.parseInt(page);
-        console.log("pageNumber:", pageNumber);
         return pageNumber;
       } catch {
-        console.log("pageNumber is not a integer:", p);
+        console.error("pageNumber is not a integer:", p);
+        return 0;
       }
     })
     .catch((error) => {
       console.error("Error executing JavaScript in webview:", error);
+      return 0;
     });
 };
 
-const getFilename = (e: Event): Promise<string | void> => {
-  console.log(e);
-  console.log(e.currentTarget);
+const getFilename = (e: Event): Promise<string> => {
   const webview = e.target as webviewTag;
   if (!webview) {
     return Promise.resolve("");
@@ -426,6 +419,7 @@ const getFilename = (e: Event): Promise<string | void> => {
     })
     .catch((error) => {
       console.error("Error executing JavaScript in webview:", error);
+      return "";
     });
 };
 

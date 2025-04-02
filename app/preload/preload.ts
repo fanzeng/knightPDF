@@ -45,8 +45,6 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   ReceivePageNumber: (filename: string, pageNumber: number) => {
-    console.log(filename);
-    console.log(pageNumber);
     return ipcRenderer.invoke("ReceivePageNumber", filename, pageNumber);
   },
 

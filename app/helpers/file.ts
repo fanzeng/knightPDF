@@ -58,7 +58,6 @@ async function openFile(
     let pageArg = "";
     if (Array.isArray(page) && i < page.length && page[i]) {
       pageArg = `page=${page[i]}`;
-      console.log("pageArg", pageArg);
     } else {
       console.log("Cannot open to last visited pages:", file);
       pageArg = "";
