@@ -50,7 +50,6 @@ import {
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
 import process from "node:process";
-import { rejects } from "node:assert";
 
 // Workaround if the schema is invalid
 // see: https://github.com/sindresorhus/electron-store/issues/116#issuecomment-816515814

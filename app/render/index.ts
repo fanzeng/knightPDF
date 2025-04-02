@@ -291,8 +291,8 @@ async function nightPDF() {
           openedFiles = openedFiles.filter(
             (f) =>
               !(typeof f === "string"
-                ? f !== lastClosedFile
-                : (f as OpenedFile).filename !== lastClosedFile),
+                ? f === lastClosedFile
+                : (f as OpenedFile).filename === lastClosedFile),
           );
           const openedFile: OpenedFile = {
             filename: lastClosedFile,
