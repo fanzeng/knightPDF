@@ -287,7 +287,13 @@ async function nightPDF() {
             0,
             debug,
           );
-          const openedFiles = (await window.api.GetSettings()).openedFiles;
+          let openedFiles = (await window.api.GetSettings()).openedFiles;
+          openedFiles = openedFiles.filter(
+            (f) =>
+              !(typeof f === "string"
+                ? f !== lastClosedFile
+                : (f as OpenedFile).filename !== lastClosedFile),
+          );
           const openedFile: OpenedFile = {
             filename: lastClosedFile,
             pageNumber: 0,

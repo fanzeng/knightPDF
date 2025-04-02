@@ -50,6 +50,7 @@ import {
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
 import process from "node:process";
+import { rejects } from "node:assert";
 
 // Workaround if the schema is invalid
 // see: https://github.com/sindresorhus/electron-store/issues/116#issuecomment-816515814
@@ -178,17 +179,17 @@ function createWindow(
       }
     }
   });
-  win.once("close", (e) => {
-    e.preventDefault();
+  store.set("canQuit", true);
+  const blurFocusedWin = () => {
     const focusedWin = BrowserWindow.getFocusedWindow();
     if (focusedWin) {
       focusedWin.webContents.send("blur-tab");
+      store.set("canQuit", false);
     }
-    for (const win of wins) {
-      if (win?.webContents) {
-        win.webContents.send("blur-tab");
-      }
-    }
+  };
+  win.once("close", (e) => {
+    e.preventDefault();
+    blurFocusedWin();
     setTimeout(() => {
       win.close();
     }, 10);
@@ -230,6 +231,7 @@ function createWindow(
     const menu = Menu.buildFromTemplate(template);
     const file_open = menu.getMenuItemById("file-open");
     const print = menu.getMenuItemById("file-print");
+    const file_quit = menu.getMenuItemById("file-quit");
 
     if (file_open) {
       file_open.click = () => {
@@ -243,6 +245,25 @@ function createWindow(
         if (focusedWin) {
           focusedWin.webContents.send("file-print");
         }
+      };
+    }
+
+    if (file_quit) {
+      file_quit.click = () => {
+        blurFocusedWin();
+        setInterval(() => {
+          if (store.get("canQuit")) {
+            if (process.platform === "darwin") {
+              setTimeout(() => {
+                app.exit(0);
+              }, 0);
+            } else {
+              setTimeout(() => {
+                app.quit();
+              }, 0);
+            }
+          }
+        }, 100);
       };
     }
 
@@ -305,6 +326,7 @@ function createWindow(
           }
         });
         store.set("openedFiles", openedFiles);
+        store.set("canQuit", true);
       },
     );
 

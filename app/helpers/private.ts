@@ -26,8 +26,6 @@ const addPagechangeListener: string = `
   let eventBus = window.PDFViewerApplication.eventBus;
   eventBus.on('pagechanging', (e) => {
     window.pageNumber = e.pageNumber;
-    window.focus();
-    window.blur();
   });
 `;
 
