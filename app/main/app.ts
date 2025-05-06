@@ -127,6 +127,39 @@ function setkeybind(id: string, command: Keybinds) {
   store.set("keybinds", storeKeybinds);
 }
 
+const blurFocusedWin = () => {
+  const focusedWin = BrowserWindow.getFocusedWindow();
+  if (focusedWin) {
+    focusedWin.webContents.send("blur-tab");
+    store.set("canQuit", false);
+  }
+};
+
+function handleWindowClose(win: BrowserWindow, timeout = 5000) {
+  blurFocusedWin();
+  setTimeout(() => {
+    store.set("canQuit", true); // Fallback to ensure quit isn't blocked forever
+    win.close();
+  }, timeout);
+}
+
+const onQuit = () => {
+  blurFocusedWin();
+  setInterval(() => {
+    if (store.get("canQuit")) {
+      if (process.platform === "darwin") {
+        setTimeout(() => {
+          app.exit(0);
+        }, 0);
+      } else {
+        setTimeout(() => {
+          app.quit();
+        }, 0);
+      }
+    }
+  }, 100);
+};
+
 function createWindow(
   filename: string | string[] | null = null,
   page: number | number[] | null = null,
@@ -179,25 +212,17 @@ function createWindow(
     }
   });
   store.set("canQuit", true);
-  const blurFocusedWin = () => {
-    const focusedWin = BrowserWindow.getFocusedWindow();
-    if (focusedWin) {
-      focusedWin.webContents.send("blur-tab");
-      store.set("canQuit", false);
-    }
-  };
   win.once("close", (e) => {
     e.preventDefault();
+    handleWindowClose(win, 10);
     blurFocusedWin();
-    setTimeout(() => {
-      win.close();
-    }, 10);
   });
   win.once("closed", () => {
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
     wins = [];
+    onQuit();
   });
 
   win.webContents.removeAllListeners("did-finish-load");
@@ -248,22 +273,7 @@ function createWindow(
     }
 
     if (file_quit) {
-      file_quit.click = () => {
-        blurFocusedWin();
-        setInterval(() => {
-          if (store.get("canQuit")) {
-            if (process.platform === "darwin") {
-              setTimeout(() => {
-                app.exit(0);
-              }, 0);
-            } else {
-              setTimeout(() => {
-                app.quit();
-              }, 0);
-            }
-          }
-        }, 100);
-      };
+      file_quit.click = onQuit;
     }
 
     ipcMain.handle("getPath", (_e: IpcMainInvokeEvent, args: string) => {
