@@ -362,9 +362,9 @@ function createWindow(
           if (wins.length === 0) {
             createWindow(filenames);
           } else {
-            const focusedWin = BrowserWindow.getFocusedWindow();
+            const focusedWin = BrowserWindow.getFocusedWindow() || wins[0];
             if (focusedWin) {
-              focusedWin.webContents.send("file-open", filenames, DEBUG);
+              focusedWin.webContents.send("file-open", filenames);
               if (store.store.general.MaximizeOnOpen) {
                 focusedWin.maximize();
               }
