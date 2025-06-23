@@ -1,11 +1,16 @@
 import type { Schema } from "electron-store";
 import type { JSONSchema } from "json-schema-typed";
 
+type OpenedFile = {
+  filename: string;
+  pageNumber: number;
+};
+
 type NightPDFSettings = JSONSchema & {
   version: string;
   general: Record<string, boolean>;
   keybinds: Record<string, Keybinds>;
-  openedFiles: string[];
+  openedFiles: (OpenedFile | string)[];
 };
 
 // kebind config
@@ -429,4 +434,5 @@ export {
   modifierToString,
   KeybindHelper,
   KeybindsHelper,
+  type OpenedFile,
 };

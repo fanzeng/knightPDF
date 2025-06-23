@@ -24,7 +24,11 @@ import type { API } from "nouislider";
 import { handlePresetChange } from "../helpers/sliders";
 import { hideDarkConfigurator, toggleDarkConfigurator } from "../helpers/css";
 import { openFile } from "../helpers/file";
-import type { Keybinds, NightPDFSettings } from "../helpers/settings";
+import type {
+  Keybinds,
+  NightPDFSettings,
+  OpenedFile,
+} from "../helpers/settings";
 import { focusTab } from "../helpers/private";
 
 declare global {
@@ -34,7 +38,8 @@ declare global {
       getFileName(arg0: string): Promise<string>;
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
-      SetOpenedFiles(openedFiles: string[]): Promise<null>;
+      SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
+      ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
@@ -58,6 +63,7 @@ declare global {
   interface webviewTag extends HTMLElement {
     getURL(): string;
     stop(): void;
+    executeJavaScript(s: string): Promise<unknown>;
   }
   interface EventNav extends Event {
     url: string;
@@ -141,8 +147,11 @@ async function nightPDF() {
       const closed = tabFilePath.get(tab);
       const settings = await window.api.GetSettings();
       const files = [...settings.openedFiles];
-      const openedFiles = files.filter((f) => {
-        return f !== closed;
+      const openedFiles = files.filter((f: string | OpenedFile) => {
+        return (
+          (typeof f === "string" && f !== closed) ||
+          (typeof f === "object" && f?.filename !== closed)
+        );
       });
       await window.api.SetOpenedFiles(openedFiles);
     });
@@ -154,15 +163,15 @@ async function nightPDF() {
     "file-open",
     async (
       _e: Event,
-      msg: string | [string, number] | [string],
+      msg: string | [string | string[], number | number[]] | [string],
       debug = false,
     ) => {
-      let page: number | null = null;
+      let page: number | number[] | null = null;
       let files: string | string[];
       if (
         Array.isArray(msg) &&
         msg.length === 2 &&
-        typeof msg[1] === "number"
+        (typeof msg[1] === "number" || Array.isArray(msg[1]))
       ) {
         page = msg[1];
         files = msg[0];
@@ -216,11 +225,36 @@ async function nightPDF() {
   window.api.removeAllListeners("close-tab");
   window.api.on("close-tab", async (_e: Event, _msg: string) => {
     const tab = tabGroup?.getActiveTab();
-    if (tab) {
-      console.log("Closing active tab.");
-      console.log("tab is ", tab);
-      tab.close(false);
+    const webview = tab.webview as webviewTag;
+    if (webview) {
+      webview.focus();
     }
+    const iframe = webview.shadowRoot?.querySelector("iframe");
+    if (iframe) {
+      iframe.focus();
+    }
+    webview.blur();
+    if (tab) {
+      console.log("Closing active tab:", tab);
+      setTimeout(() => {
+        tab.close(false);
+      }, 10);
+    }
+  });
+
+  // blur-tab event
+  window.api.removeAllListeners("blur-tab");
+  window.api.on("blur-tab", async (_e: Event, _msg: string) => {
+    const tab = tabGroup?.getActiveTab();
+    const webview = tab.webview as webviewTag;
+    if (webview) {
+      webview.focus();
+    }
+    const iframe = webview.shadowRoot?.querySelector("iframe");
+    if (iframe) {
+      iframe.focus();
+    }
+    webview.blur();
   });
 
   // reopen-tab event
@@ -250,11 +284,21 @@ async function nightPDF() {
             extraBrightnessSliderElement,
             hueSliderElement,
             settings.general.DisplayThumbs,
-            null,
+            0,
             debug,
           );
-          const openedFiles = (await window.api.GetSettings()).openedFiles;
-          openedFiles.push(lastClosedFile);
+          let openedFiles = (await window.api.GetSettings()).openedFiles;
+          openedFiles = openedFiles.filter(
+            (f) =>
+              !(typeof f === "string"
+                ? f === lastClosedFile
+                : (f as OpenedFile).filename === lastClosedFile),
+          );
+          const openedFile: OpenedFile = {
+            filename: lastClosedFile,
+            pageNumber: 0,
+          };
+          openedFiles.push(openedFile);
           window.api.SetOpenedFiles(openedFiles);
         }
       }

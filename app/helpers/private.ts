@@ -22,6 +22,13 @@ function handleKeys(e) {
 document.addEventListener("keydown", handleKeys, true);
 `;
 
+const addPagechangeListener: string = `
+  let eventBus = window.PDFViewerApplication.eventBus;
+  eventBus.on('pagechanging', (e) => {
+    window.pageNumber = e.pageNumber;
+  });
+`;
+
 function _try(func: CallableFunction, fallbackValue: number) {
   try {
     const value = func();
@@ -48,6 +55,8 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
     }
     // @ts-ignore
     content?.executeJavaScript(keyInterceptor);
+    // @ts-ignore
+    content?.executeJavaScript(addPagechangeListener);
     let style = "div#viewer .page {";
     style +=
       "filter: brightness(0.92) grayscale(0.0) invert(0.8) hue-rotate(180deg) brightness(0.7);";
@@ -93,6 +102,12 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
       )
       .then((key: string) => {
         console.info("inserted style", key);
+        content.addEventListener("blur", (e: FocusEvent) => {
+          updatePageNumber(e);
+        });
+        content.addEventListener("mouseleave", (e: Event) => {
+          updatePageNumber(e);
+        });
         focusTab(tab);
       });
   });
@@ -336,5 +351,71 @@ function setupSliders(
     });
   });
 }
+
+// This is not used at the moment.
+// It requires mapping between the fingerprint encoded by pdfjs and the filenames to work.
+const getPageNumberFromHistory = (e: FocusEvent) => {
+  const target = e?.currentTarget as Window;
+  if (target?.localStorage) {
+    console.log(target.localStorage["pdfjs.history"]);
+    const history = target.localStorage["pdfjs.history"];
+    const parsedHistory = JSON.parse(history);
+    const historyLen = parsedHistory.files.length;
+    if (historyLen > 0) {
+      // This won't work.
+      return parsedHistory.files[historyLen - 1].page;
+    }
+  }
+};
+
+const updatePageNumber = (e: Event) => {
+  return getPageNumber(e).then((pageNumber) => {
+    if (pageNumber && pageNumber > 0) {
+      getFilename(e).then((filename) => {
+        if (filename && (filename as string).length > 0)
+          window.api.ReceivePageNumber(filename, pageNumber);
+      });
+    }
+  });
+};
+
+const getPageNumber = (e: Event): Promise<number> => {
+  const webview = e.target as webviewTag;
+  if (!webview) {
+    return Promise.reject(0);
+  }
+  return webview
+    .executeJavaScript("window.pageNumber")
+    .then((p) => {
+      try {
+        const page = p as string;
+        const pageNumber = Number.parseInt(page);
+        return pageNumber;
+      } catch {
+        console.error("pageNumber is not an integer:", p);
+        return 0;
+      }
+    })
+    .catch((error) => {
+      console.error("Error executing JavaScript in webview:", error);
+      return 0;
+    });
+};
+
+const getFilename = (e: Event): Promise<string> => {
+  const webview = e.target as webviewTag;
+  if (!webview) {
+    return Promise.resolve("");
+  }
+  return webview
+    .executeJavaScript("window.PDFViewerApplication.baseUrl")
+    .then((filename) => {
+      return filename as string;
+    })
+    .catch((error) => {
+      console.error("Error executing JavaScript in webview:", error);
+      return "";
+    });
+};
 
 export { setupSliders, setupTab, focusTab };

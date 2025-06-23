@@ -28,6 +28,12 @@ function createMenu() {
             openSettings();
           },
         },
+        {
+          label: "Quit",
+          id: "file-quit",
+          accelerator: "CmdOrCtrl+Q",
+          enabled: true,
+        },
       ],
     },
     {

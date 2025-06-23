@@ -46,6 +46,7 @@ import {
   type Keybinds,
   nightpdf_default_settings,
   KeybindsHelper,
+  type OpenedFile,
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
 import process from "node:process";
@@ -76,7 +77,7 @@ const store = makeStore({
   clearInvalidConfig: true,
 });
 
-let wins = [];
+let wins: BrowserWindow[] = [];
 let menuIsConfigured = false;
 
 const DEBUG = process.env.DEBUG;
@@ -126,9 +127,42 @@ function setkeybind(id: string, command: Keybinds) {
   store.set("keybinds", storeKeybinds);
 }
 
+const blurFocusedWin = () => {
+  const focusedWin = BrowserWindow.getFocusedWindow();
+  if (focusedWin) {
+    focusedWin.webContents.send("blur-tab");
+    store.set("canQuit", false);
+  }
+};
+
+function handleWindowClose(win: BrowserWindow, timeout = 5000) {
+  blurFocusedWin();
+  setTimeout(() => {
+    store.set("canQuit", true); // Fallback to ensure quit isn't blocked forever
+    win.close();
+  }, timeout);
+}
+
+const onQuit = () => {
+  blurFocusedWin();
+  setInterval(() => {
+    if (store.get("canQuit")) {
+      if (process.platform === "darwin") {
+        setTimeout(() => {
+          app.exit(0);
+        }, 0);
+      } else {
+        setTimeout(() => {
+          app.quit();
+        }, 0);
+      }
+    }
+  }, 100);
+};
+
 function createWindow(
   filename: string | string[] | null = null,
-  page: number | null = null,
+  page: number | number[] | null = null,
 ) {
   //force dark theme irespective of os theme
   //useful for linux since we don't have a standardised way of detecting dark theme
@@ -177,12 +211,18 @@ function createWindow(
       }
     }
   });
-
+  store.set("canQuit", true);
+  win.once("close", (e) => {
+    e.preventDefault();
+    handleWindowClose(win, 10);
+    blurFocusedWin();
+  });
   win.once("closed", () => {
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
     wins = [];
+    onQuit();
   });
 
   win.webContents.removeAllListeners("did-finish-load");
@@ -215,6 +255,7 @@ function createWindow(
     const menu = Menu.buildFromTemplate(template);
     const file_open = menu.getMenuItemById("file-open");
     const print = menu.getMenuItemById("file-print");
+    const file_quit = menu.getMenuItemById("file-quit");
 
     if (file_open) {
       file_open.click = () => {
@@ -229,6 +270,10 @@ function createWindow(
           focusedWin.webContents.send("file-print");
         }
       };
+    }
+
+    if (file_quit) {
+      file_quit.click = onQuit;
     }
 
     ipcMain.handle("getPath", (_e: IpcMainInvokeEvent, args: string) => {
@@ -268,12 +313,29 @@ function createWindow(
     );
     ipcMain.handle(
       "SetOpenedFiles",
-      (_e: IpcMainInvokeEvent, openedFiles: string[]) => {
+      (_e: IpcMainInvokeEvent, openedFiles: (OpenedFile | string)[]) => {
         if (openedFiles && openedFiles.length > 0) {
           store.set("openedFiles", openedFiles);
         } else {
           store.set("openedFiles", []);
         }
+      },
+    );
+    ipcMain.handle(
+      "ReceivePageNumber",
+      (_e: IpcMainInvokeEvent, filename: string, pageNumber) => {
+        const openedFiles = store.get("openedFiles");
+        openedFiles.forEach((f, i) => {
+          if (typeof f === "string") {
+            if (f === filename) {
+              openedFiles[i] = { filename, pageNumber };
+            }
+          } else if (f.filename === filename) {
+            openedFiles[i] = { filename, pageNumber };
+          }
+        });
+        store.set("openedFiles", openedFiles);
+        store.set("canQuit", true);
       },
     );
 
@@ -300,9 +362,9 @@ function createWindow(
           if (wins.length === 0) {
             createWindow(filenames);
           } else {
-            const focusedWin = BrowserWindow.getFocusedWindow();
+            const focusedWin = BrowserWindow.getFocusedWindow() || wins[0];
             if (focusedWin) {
-              focusedWin.webContents.send("file-open", filenames, DEBUG);
+              focusedWin.webContents.send("file-open", filenames);
               if (store.store.general.MaximizeOnOpen) {
                 focusedWin.maximize();
               }
@@ -350,8 +412,8 @@ function createWindow(
   });
 }
 
-let fileToOpen: string | string[] = "";
-let pageToOpen: number | null = null;
+let fileToOpen: string | (OpenedFile | string)[] = "";
+let pageToOpen: number | number[] | null = null;
 
 const argv = yargs
   .scriptName("NightPDF")
@@ -408,19 +470,27 @@ app.whenReady().then(() => {
     fileToOpen = store.get("openedFiles");
     console.log("fileToOpen =", fileToOpen);
   }
+  let filenames: string | string[];
   if (fileToOpen) {
     if (typeof fileToOpen === "string") {
-      fileToOpen.replace("file://", "");
+      filenames = fileToOpen.replace("file://", "");
     } else {
-      let i: string;
-      for (i in fileToOpen) {
-        fileToOpen[i] = fileToOpen[i].replace("file://", "");
+      filenames = [];
+      pageToOpen = [];
+      for (const [index, item] of fileToOpen.entries()) {
+        if (typeof item === "string") {
+          filenames.push(item.replace("file://", ""));
+          pageToOpen.push(0);
+        } else {
+          filenames.push(item.filename.replace("file://", ""));
+          pageToOpen.push(item.pageNumber);
+        }
       }
     }
     if (pageToOpen) {
-      createWindow(fileToOpen, pageToOpen);
+      createWindow(filenames, pageToOpen);
     } else {
-      createWindow(fileToOpen);
+      createWindow(filenames);
     }
   } else {
     createWindow();
