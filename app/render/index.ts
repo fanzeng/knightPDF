@@ -28,8 +28,14 @@ import type {
   Keybinds,
   NightPDFSettings,
   OpenedFile,
+  FilterPreferences,
+  FilterPreset,
 } from "../helpers/settings";
-import { focusTab } from "../helpers/private";
+import {
+  focusTab,
+  savePageNumber,
+  setActiveFilterPreset,
+} from "../helpers/private";
 
 declare global {
   interface Window {
@@ -39,12 +45,17 @@ declare global {
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
       SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
+      GetOpenedFiles(): Promise<(OpenedFile | string)[]>;
       ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
+      RecordClosedTab(file: OpenedFile): Promise<null>;
+      RemoveRecentlyClosedTab(filename: string): Promise<null>;
       GetSettings(): Promise<NightPDFSettings>;
+      SetFilterPreferences(filterPreferences: FilterPreferences): Promise<null>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
-      openNewPDF(arg0: null | string): null;
+      openNewPDF(openInNewWindow: boolean | null): null;
       newWindow(arg0: string | string[]): null;
+      closeReady(): null;
       newTab(arg0: string | string[]): null;
       togglePrinting(arg0: boolean): null;
       resizeWindow(arg0: null | string): null;
@@ -72,6 +83,7 @@ declare global {
 
 async function nightPDF() {
   console.log("loading");
+  let filterPreferences = (await window.api.GetSettings()).filterPreferences;
   const appContainerElement: HTMLElement = document.getElementById(
     "appContainer",
   ) as HTMLElement;
@@ -119,6 +131,39 @@ async function nightPDF() {
   const tabFilePath: Map<Tab, string> = new Map();
   const closedFileHistory: string[] = [];
 
+  const presetButtons: Record<FilterPreset, HTMLElement> = {
+    crispy: crispyButton,
+    sepia: sepiaButton,
+    gentle: gentleButton,
+    custom: customButton,
+  };
+  const setActivePresetButton = (preset: FilterPreset) => {
+    for (const [name, button] of Object.entries(presetButtons)) {
+      button.className = name === preset ? "button active" : "button";
+    }
+  };
+  const selectPreset = async (preset: FilterPreset) => {
+    const settings = await window.api.GetSettings();
+    setActiveFilterPreset(preset);
+    handlePresetChange(
+      preset,
+      brightnessSliderElement,
+      grayscaleSliderElement,
+      invertSliderElement,
+      sepiaSliderElement,
+      extraBrightnessSliderElement,
+      hueSliderElement,
+      settings.filterPreferences.custom,
+    );
+    filterPreferences = {
+      ...settings.filterPreferences,
+      activePreset: preset,
+    };
+    setActivePresetButton(preset);
+    await window.api.SetFilterPreferences(filterPreferences);
+  };
+  setActivePresetButton(filterPreferences.activePreset);
+
   appContainerElement.style.display = "none";
   tabGroup?.on("ready", (tabGroup: TabGroup) => {
     // replace new tabe default "click" event handler
@@ -126,7 +171,7 @@ async function nightPDF() {
       "click",
       (e: Event) => {
         e.stopImmediatePropagation();
-        window.api.openNewPDF(null);
+        window.api.openNewPDF(false);
       },
       true,
     );
@@ -141,20 +186,6 @@ async function nightPDF() {
       },
       true,
     );
-    // Listen for the tab-removed event
-    tabGroup?.on("tab-removed", async (tab, tabGroup) => {
-      console.log(`Tab with title "${tab.title}" was closed.`);
-      const closed = tabFilePath.get(tab);
-      const settings = await window.api.GetSettings();
-      const files = [...settings.openedFiles];
-      const openedFiles = files.filter((f: string | OpenedFile) => {
-        return (
-          (typeof f === "string" && f !== closed) ||
-          (typeof f === "object" && f?.filename !== closed)
-        );
-      });
-      await window.api.SetOpenedFiles(openedFiles);
-    });
   });
 
   //setup electron listeners
@@ -209,6 +240,36 @@ async function nightPDF() {
       );
     },
   );
+
+  window.api.removeAllListeners("prepare-to-close");
+  window.api.on("prepare-to-close", async () => {
+    try {
+      const tabs = tabGroup?.getTabs() ?? [];
+      await Promise.all(
+        tabs.map((tab) => {
+          const filename = tabFilePath.get(tab);
+          return filename
+            ? savePageNumber(tab.webview as webviewTag, filename)
+            : Promise.resolve();
+        }),
+      );
+      const openPaths = new Set(
+        tabs
+          .map((tab) => tabFilePath.get(tab))
+          .filter((filename): filename is string => Boolean(filename)),
+      );
+      const openedFiles = await window.api.GetOpenedFiles();
+      await window.api.SetOpenedFiles(
+        openedFiles.filter((file) =>
+          openPaths.has(typeof file === "string" ? file : file.filename),
+        ),
+      );
+    } catch (error) {
+      console.error("Error preparing PDF windows to close:", error);
+    } finally {
+      window.api.closeReady();
+    }
+  });
 
   window.api.removeAllListeners("file-print");
   window.api.on("file-print", (_e: Event, _msg: string) => {
@@ -265,6 +326,7 @@ async function nightPDF() {
       if (closedFileHistory.length > 0) {
         const lastClosedFile = closedFileHistory.pop();
         if (lastClosedFile) {
+          await window.api.RemoveRecentlyClosedTab(lastClosedFile);
           const settings = await window.api.GetSettings();
           await openFile(
             lastClosedFile,
@@ -287,19 +349,6 @@ async function nightPDF() {
             0,
             debug,
           );
-          let openedFiles = (await window.api.GetSettings()).openedFiles;
-          openedFiles = openedFiles.filter(
-            (f) =>
-              !(typeof f === "string"
-                ? f === lastClosedFile
-                : (f as OpenedFile).filename === lastClosedFile),
-          );
-          const openedFile: OpenedFile = {
-            filename: lastClosedFile,
-            pageNumber: 0,
-          };
-          openedFiles.push(openedFile);
-          window.api.SetOpenedFiles(openedFiles);
         }
       }
     },
@@ -389,85 +438,37 @@ async function nightPDF() {
   });
 
   // setup dom listeners
-  crispyButton.addEventListener("click", (e: Event) => {
+  crispyButton.addEventListener("click", async (e: Event) => {
     if (crispyButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      crispyButton.className = "button active";
-      sepiaButton.className = "button";
-      gentleButton.className = "button";
-      customButton.className = "button";
-      handlePresetChange(
-        "crispy",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
+      await selectPreset("crispy");
     }
 
     e.stopPropagation();
   });
-  sepiaButton.addEventListener("click", (e: Event) => {
+  sepiaButton.addEventListener("click", async (e: Event) => {
     if (sepiaButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      crispyButton.className = "button";
-      sepiaButton.className = "button active";
-      gentleButton.className = "button";
-      customButton.className = "button";
-      handlePresetChange(
-        "sepia",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
+      await selectPreset("sepia");
     }
     e.stopPropagation();
   });
-  gentleButton.addEventListener("click", (e: Event) => {
+  gentleButton.addEventListener("click", async (e: Event) => {
     // only display menu if active
     if (gentleButton.className.includes("active")) {
       toggleDarkConfigurator(darkConfiguratorElement);
     } else {
-      crispyButton.className = "button";
-      sepiaButton.className = "button";
-      gentleButton.className = "button active";
-      customButton.className = "button";
-      handlePresetChange(
-        "gentle",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
+      await selectPreset("gentle");
     }
     e.stopPropagation();
   });
 
-  customButton.addEventListener("click", (e: Event) => {
+  customButton.addEventListener("click", async (e: Event) => {
     // always display menu
     if (!customButton.className.includes("active")) {
-      crispyButton.className = "button";
-      sepiaButton.className = "button";
-      gentleButton.className = "button";
-      customButton.className = "button active";
-      handlePresetChange(
-        "original",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
+      await selectPreset("custom");
     }
     toggleDarkConfigurator(darkConfiguratorElement);
     e.stopPropagation();

@@ -1,4 +1,6 @@
 import type { TabGroup, Tab } from "electron-tabs";
+import type { FilterPreferences, FilterPreset } from "./settings";
+import { handlePresetChange } from "./sliders";
 import { create } from "nouislider";
 
 // Code to inject into the webview, to prevent jsPDF from intercepting keybinds
@@ -29,6 +31,12 @@ const addPagechangeListener: string = `
   });
 `;
 
+let activeFilterPreset: FilterPreset = "crispy";
+
+function setActiveFilterPreset(preset: FilterPreset) {
+  activeFilterPreset = preset;
+}
+
 function _try(func: CallableFunction, fallbackValue: number) {
   try {
     const value = func();
@@ -46,7 +54,12 @@ const focusTab = (tab: Tab) => {
   }
 };
 
-function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
+function setupTab(
+  tab: Tab,
+  tabCssKey: Map<Tab, string>,
+  filename: string,
+  debug = false,
+) {
   tab.once("webview-dom-ready", () => {
     const content = tab.webview;
     if (debug) {
@@ -103,10 +116,10 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
       .then((key: string) => {
         console.info("inserted style", key);
         content.addEventListener("blur", (e: FocusEvent) => {
-          updatePageNumber(e);
+          updatePageNumber(e, filename);
         });
         content.addEventListener("mouseleave", (e: Event) => {
-          updatePageNumber(e);
+          updatePageNumber(e, filename);
         });
         focusTab(tab);
       });
@@ -187,7 +200,9 @@ function setupSliders(
   hueSliderElement: HTMLElement,
   tabGroup: TabGroup,
   tabCssKey: Map<Tab, string>,
+  filterPreferences: FilterPreferences,
 ) {
+  activeFilterPreset = filterPreferences.activePreset;
   create(brightnessSliderElement, {
     start: 7,
     step: 1,
@@ -334,10 +349,14 @@ function setupSliders(
     hueSliderElement,
     extraBrightnessSliderElement,
   ];
-  sliders.map((slider) => {
-    const namespace = brightnessSliderElement.id;
-    const eventName = `update.${namespace}`;
-    slider.noUiSlider.on(eventName, () => {
+  let cssUpdateScheduled = false;
+  const scheduleCSSUpdate = () => {
+    if (cssUpdateScheduled) {
+      return;
+    }
+    cssUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      cssUpdateScheduled = false;
       updateCSS(
         brightnessSliderElement,
         grayscaleSliderElement,
@@ -349,7 +368,42 @@ function setupSliders(
         tabCssKey,
       );
     });
-  });
+  };
+  for (const slider of sliders) {
+    const namespace = brightnessSliderElement.id;
+    const eventName = `update.${namespace}`;
+    slider.noUiSlider.on(eventName, scheduleCSSUpdate);
+    slider.noUiSlider.on("change.persistCustom", async () => {
+      if (activeFilterPreset !== "custom") {
+        return;
+      }
+      const currentSettings = await window.api.GetSettings();
+      await window.api.SetFilterPreferences({
+        ...currentSettings.filterPreferences,
+        custom: {
+          brightness: Number(brightnessSliderElement.noUiSlider.get()),
+          grayscale: Number(grayscaleSliderElement.noUiSlider.get()),
+          invert: Number(invertSliderElement.noUiSlider.get()),
+          sepia: Number(sepiaSliderElement.noUiSlider.get()),
+          hue: Number(hueSliderElement.noUiSlider.get()),
+          extraBrightness: Number(
+            extraBrightnessSliderElement.noUiSlider.get(),
+          ),
+        },
+      });
+    });
+  }
+
+  handlePresetChange(
+    filterPreferences.activePreset,
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    filterPreferences.custom,
+  );
 }
 
 // This is not used at the moment.
@@ -368,54 +422,38 @@ const getPageNumberFromHistory = (e: FocusEvent) => {
   }
 };
 
-const updatePageNumber = (e: Event) => {
-  return getPageNumber(e).then((pageNumber) => {
-    if (pageNumber && pageNumber > 0) {
-      getFilename(e).then((filename) => {
-        if (filename && (filename as string).length > 0)
-          window.api.ReceivePageNumber(filename, pageNumber);
-      });
+const updatePageNumber = (e: Event, filename: string) => {
+  return savePageNumber(e.target as webviewTag, filename);
+};
+
+const savePageNumber = async (
+  webview: webviewTag,
+  filename: string,
+): Promise<number | null> => {
+  if (!webview) {
+    return null;
+  }
+  try {
+    const page = await webview.executeJavaScript("window.pageNumber");
+    const pageNumber = Number.parseInt(String(page), 10);
+    if (!Number.isFinite(pageNumber) || pageNumber <= 0) {
+      return null;
     }
-  });
-};
-
-const getPageNumber = (e: Event): Promise<number> => {
-  const webview = e.target as webviewTag;
-  if (!webview) {
-    return Promise.reject(0);
+    if (filename.length > 0) {
+      await window.api.ReceivePageNumber(filename, pageNumber);
+      return pageNumber;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error saving PDF page number:", error);
+    return null;
   }
-  return webview
-    .executeJavaScript("window.pageNumber")
-    .then((p) => {
-      try {
-        const page = p as string;
-        const pageNumber = Number.parseInt(page);
-        return pageNumber;
-      } catch {
-        console.error("pageNumber is not an integer:", p);
-        return 0;
-      }
-    })
-    .catch((error) => {
-      console.error("Error executing JavaScript in webview:", error);
-      return 0;
-    });
 };
 
-const getFilename = (e: Event): Promise<string> => {
-  const webview = e.target as webviewTag;
-  if (!webview) {
-    return Promise.resolve("");
-  }
-  return webview
-    .executeJavaScript("window.PDFViewerApplication.baseUrl")
-    .then((filename) => {
-      return filename as string;
-    })
-    .catch((error) => {
-      console.error("Error executing JavaScript in webview:", error);
-      return "";
-    });
+export {
+  setupSliders,
+  setupTab,
+  focusTab,
+  savePageNumber,
+  setActiveFilterPreset,
 };
-
-export { setupSliders, setupTab, focusTab };

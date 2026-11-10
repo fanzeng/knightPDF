@@ -17,7 +17,13 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 import { contextBridge, ipcRenderer } from "electron";
-import type { Keybinds, Keybind, ModifierKeyMap } from "../helpers/settings";
+import type {
+  Keybinds,
+  Keybind,
+  ModifierKeyMap,
+  OpenedFile,
+  FilterPreferences,
+} from "../helpers/settings";
 
 contextBridge.exposeInMainWorld("api", {
   GetVersion: async () => {
@@ -40,12 +46,28 @@ contextBridge.exposeInMainWorld("api", {
     return ipcRenderer.invoke("GetSettings");
   },
 
-  SetOpenedFiles: (openedFiles: string[]) => {
+  SetFilterPreferences: (filterPreferences: FilterPreferences) => {
+    return ipcRenderer.invoke("SetFilterPreferences", filterPreferences);
+  },
+
+  SetOpenedFiles: (openedFiles: (OpenedFile | string)[]) => {
     return ipcRenderer.invoke("SetOpenedFiles", openedFiles);
+  },
+
+  GetOpenedFiles: () => {
+    return ipcRenderer.invoke("GetOpenedFiles");
   },
 
   ReceivePageNumber: (filename: string, pageNumber: number) => {
     return ipcRenderer.invoke("ReceivePageNumber", filename, pageNumber);
+  },
+
+  RecordClosedTab: (file: OpenedFile) => {
+    return ipcRenderer.invoke("RecordClosedTab", file);
+  },
+
+  RemoveRecentlyClosedTab: (filename: string) => {
+    return ipcRenderer.invoke("RemoveRecentlyClosedTab", filename);
   },
 
   removeAllListeners: (ListenerType: string) => {
@@ -58,12 +80,16 @@ contextBridge.exposeInMainWorld("api", {
   SetSetting: (group: string, key: string, value: unknown) => {
     return ipcRenderer.send("SetSetting", [group, key, value]);
   },
-  openNewPDF: (pdf: string) => {
-    ipcRenderer.send("openNewPDF", pdf);
+  openNewPDF: (openInNewWindow: boolean | null) => {
+    ipcRenderer.send("openNewPDF", openInNewWindow);
   },
 
   newWindow: (file: string) => {
     ipcRenderer.send("newWindow", file);
+  },
+
+  closeReady: () => {
+    ipcRenderer.send("window-close-ready");
   },
 
   togglePrinting: (value: boolean) => {

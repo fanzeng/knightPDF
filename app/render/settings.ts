@@ -102,11 +102,12 @@ async function nightPDFSettings() {
       const label = document.createElement("label");
       label.htmlFor = keys[key];
       label.classList.add("setting-name");
-      if (keys[key] === "MaximizeOnOpen") {
-        label.innerText = "Maximize On Open";
-      } else {
-        label.innerText = "Display PDF page thumbnails";
-      }
+      const settingLabels: Record<string, string> = {
+        MaximizeOnOpen: "Maximize On Open",
+        DisplayThumbs: "Display PDF page thumbnails",
+        MultiWindow: "Open new PDFs in new windows",
+      };
+      label.innerText = settingLabels[keys[key]] ?? keys[key];
 
       const checkbox = document.createElement("input") as HTMLInputElement;
       checkbox.type = "checkbox";

@@ -2,6 +2,14 @@ import type { MenuItemConstructorOptions } from "electron";
 import { shell } from "electron";
 import { openSettings } from "./settings";
 
+function recentItems(prefix: string): MenuItemConstructorOptions[] {
+  return Array.from({ length: 10 }, (_, index) => ({
+    label: "",
+    id: `${prefix}-${index}`,
+    visible: false,
+  }));
+}
+
 function createMenu() {
   const menuTemplate: MenuItemConstructorOptions[] = [];
   menuTemplate.push(
@@ -10,10 +18,45 @@ function createMenu() {
       label: "File",
       submenu: [
         {
+          label: "New Tab...",
+          id: "file-new-tab",
+        },
+        {
+          label: "New Window",
+          id: "file-new-window",
+          accelerator: "CmdOrCtrl+Shift+N",
+        },
+        { type: "separator" },
+        {
           label: "Open...",
           id: "file-open",
           accelerator: "CmdOrCtrl+O",
         },
+        {
+          label: "Recently Closed Tabs",
+          id: "file-recent-tabs",
+          submenu: [
+            {
+              label: "No recently closed tabs",
+              id: "file-recent-tabs-empty",
+              enabled: false,
+            },
+            ...recentItems("file-recent-tab"),
+          ],
+        },
+        {
+          label: "Recently Closed Windows",
+          id: "file-recent-windows",
+          submenu: [
+            {
+              label: "No recently closed windows",
+              id: "file-recent-windows-empty",
+              enabled: false,
+            },
+            ...recentItems("file-recent-window"),
+          ],
+        },
+        { type: "separator" },
         {
           label: "Print",
           id: "file-print",
