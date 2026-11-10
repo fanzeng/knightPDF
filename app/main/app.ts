@@ -238,6 +238,20 @@ function rememberClosedWindow(files: OpenedFile[]) {
   refreshRecentlyClosedMenus();
 }
 
+function findMenuItem(menu: Menu, id: string): MenuItem | undefined {
+  for (const item of menu.items) {
+    if (item.id === id) {
+      return item;
+    }
+    if (item.submenu) {
+      const nestedItem = findMenuItem(item.submenu, id);
+      if (nestedItem) {
+        return nestedItem;
+      }
+    }
+  }
+}
+
 function refreshRecentlyClosedMenus() {
   const menu = Menu.getApplicationMenu();
   if (!menu) {
@@ -245,12 +259,12 @@ function refreshRecentlyClosedMenus() {
   }
 
   const closedTabs = store.get("recentlyClosedTabs");
-  const emptyTabsItem = menu.getMenuItemById("file-recent-tabs-empty");
+  const emptyTabsItem = findMenuItem(menu, "file-recent-tabs-empty");
   if (emptyTabsItem) {
     emptyTabsItem.visible = closedTabs.length === 0;
   }
   for (let index = 0; index < MAX_RECENTLY_CLOSED; index++) {
-    const item = menu.getMenuItemById(`file-recent-tab-${index}`);
+    const item = findMenuItem(menu, `file-recent-tab-${index}`);
     const file = closedTabs[index];
     if (item) {
       item.visible = Boolean(file);
@@ -265,12 +279,12 @@ function refreshRecentlyClosedMenus() {
   const closedWindows = store
     .get("recentlyClosedWindows")
     .filter((closedWindow) => closedWindow.files.length > 0);
-  const emptyWindowsItem = menu.getMenuItemById("file-recent-windows-empty");
+  const emptyWindowsItem = findMenuItem(menu, "file-recent-windows-empty");
   if (emptyWindowsItem) {
     emptyWindowsItem.visible = closedWindows.length === 0;
   }
   for (let index = 0; index < MAX_RECENTLY_CLOSED; index++) {
-    const item = menu.getMenuItemById(`file-recent-window-${index}`);
+    const item = findMenuItem(menu, `file-recent-window-${index}`);
     const closedWindow = closedWindows[index];
     if (item) {
       item.visible = Boolean(closedWindow);
