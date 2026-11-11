@@ -63,8 +63,9 @@ async function openFile(
       : typeof page === "number"
         ? page
         : 0;
-    if (Array.isArray(page) && i < page.length && page[i]) {
-      pageArg = `page=${page[i]}`;
+    const pageToRestore = Array.isArray(page) ? page[i] : i === 0 ? page : null;
+    if (typeof pageToRestore === "number" && pageToRestore > 0) {
+      pageArg = `page=${pageToRestore}`;
     } else {
       console.log("Cannot open to last visited pages:", file);
       pageArg = "";
