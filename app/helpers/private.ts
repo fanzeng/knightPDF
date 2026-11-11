@@ -5,7 +5,7 @@ import { create } from "nouislider";
 
 // Code to inject into the webview, to prevent jsPDF from intercepting keybinds
 const keyInterceptor: string = `
-var _ctrlCmdKeybinds = ["o", "p", "t", "w", "Tab", "F4", "PageUp", "PageDown", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+var _ctrlCmdKeybinds = ["o", "p", "t", "w", "Tab", "F4", "PageUp", "PageDown", "ArrowLeft", "ArrowRight", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 var _ctrlCmdPlusShiftKeybinds = ["t", "w", "Tab", "PageUp", "PageDown", "Home", "End"];
 function handleKeys(e) {
 	// ctrl / cmd

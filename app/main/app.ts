@@ -885,6 +885,30 @@ app.whenReady().then(() => {
       });
     }
   }
+  if (process.platform === "darwin") {
+    sm.push(
+      {
+        label: "Next Tab",
+        accelerator: "Alt+Cmd+Right",
+        click: () => {
+          BrowserWindow.getFocusedWindow()?.webContents.send(
+            "switch-tab",
+            "next",
+          );
+        },
+      },
+      {
+        label: "Previous Tab",
+        accelerator: "Alt+Cmd+Left",
+        click: () => {
+          BrowserWindow.getFocusedWindow()?.webContents.send(
+            "switch-tab",
+            "prev",
+          );
+        },
+      },
+    );
+  }
 
   // register Ctrl+1 to Ctrl+9 shortcuts
   let k = "Ctrl";
