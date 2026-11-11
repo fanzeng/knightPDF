@@ -126,6 +126,9 @@ async function nightPDF() {
   const customButton: HTMLElement = document.getElementById(
     "custom-button",
   ) as HTMLElement;
+  const customizeButton: HTMLButtonElement = document.getElementById(
+    "customize-button",
+  ) as HTMLButtonElement;
   const tabGroup: TabGroup = document.querySelector("tab-group") as TabGroup;
   const tabCssKey: Map<Tab, string> = new Map();
   const tabFilePath: Map<Tab, string> = new Map();
@@ -436,38 +439,26 @@ async function nightPDF() {
 
   // setup dom listeners
   crispyButton.addEventListener("click", async (e: Event) => {
-    if (crispyButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      await selectPreset("crispy");
-    }
-
+    await selectPreset("crispy");
     e.stopPropagation();
   });
   sepiaButton.addEventListener("click", async (e: Event) => {
-    if (sepiaButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      await selectPreset("sepia");
-    }
+    await selectPreset("sepia");
     e.stopPropagation();
   });
   gentleButton.addEventListener("click", async (e: Event) => {
-    // only display menu if active
-    if (gentleButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      await selectPreset("gentle");
-    }
+    await selectPreset("gentle");
     e.stopPropagation();
   });
 
   customButton.addEventListener("click", async (e: Event) => {
-    // always display menu
-    if (!customButton.className.includes("active")) {
-      await selectPreset("custom");
-    }
-    toggleDarkConfigurator(darkConfiguratorElement);
+    await selectPreset("custom");
+    e.stopPropagation();
+  });
+
+  customizeButton.addEventListener("click", async (e: Event) => {
+    await selectPreset("custom");
+    darkConfiguratorElement.style.visibility = "visible";
     e.stopPropagation();
   });
 
