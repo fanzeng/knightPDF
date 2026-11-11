@@ -1,6 +1,6 @@
 import type { TabGroup, Tab } from "electron-tabs";
 import type { OpenedFile } from "./settings";
-import { setupSliders, setupTab, focusTab, savePageNumber } from "./private";
+import { setupTab, focusTab, savePageNumber } from "./private";
 
 async function openFile(
   files: string | string[] | FileList,
@@ -24,12 +24,6 @@ async function openFile(
   page: number | number[] | null = null,
   debug = false,
 ) {
-  let slidersInitialized: boolean;
-  if (sessionStorage.getItem("slidersInitialized")) {
-    slidersInitialized = true;
-  } else {
-    slidersInitialized = false;
-  }
   const tabs = tabGroup?.getTabs();
   const openedFilesToPersist: OpenedFile[] = [];
   if (!tabs || tabs.length === 0) {
@@ -88,7 +82,7 @@ async function openFile(
         title: `\u202A${title}\u202A`,
         active: true,
         src: "",
-        ready: async (tab: Tab) => {
+        ready: (tab: Tab) => {
           console.info("tab loaded");
           tabFilePath.set(tab, resolved_file);
           tab.element.classList.add("document-tab");
@@ -97,23 +91,6 @@ async function openFile(
           splashElement.style.display = "none";
           window.api.togglePrinting(true);
           setupTab(tab, tabCssKey, resolved_file, debug);
-          if (slidersInitialized === false) {
-            sessionStorage.setItem("slidersInitialized", "true");
-            console.debug("setting up sliders");
-            const settings = await window.api.GetSettings();
-            setupSliders(
-              brightnessSliderElement,
-              grayscaleSliderElement,
-              invertSliderElement,
-              sepiaSliderElement,
-              extraBrightnessSliderElement,
-              hueSliderElement,
-              tabGroup,
-              tabCssKey,
-              settings.filterPreferences,
-            );
-            slidersInitialized = true;
-          }
           focusTab(tab);
         },
       };
@@ -129,6 +106,11 @@ async function openFile(
       const tab = tabGroup?.addTab(entry);
       const webview = tab?.webview as webviewTag;
       tabFilePath.set(tab, resolved_file);
+      tab.element.addEventListener("contextmenu", (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.api.showTabMenu(tab.id, resolved_file);
+      });
       webview.addEventListener("will-navigate", (e) => {
         const event = e as EventNav;
         const url = event.url;

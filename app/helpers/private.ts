@@ -3,6 +3,13 @@ import type { FilterPreferences, FilterPreset } from "./settings";
 import { handlePresetChange } from "./sliders";
 import { create } from "nouislider";
 
+function updateCustomPreview(custom: FilterPreferences["custom"]) {
+  const preview = document.getElementById("custom-preview");
+  if (preview) {
+    preview.style.filter = `brightness(${(100 - custom.brightness) / 100}) grayscale(${custom.grayscale / 100}) invert(${custom.invert / 100}) sepia(${custom.sepia / 100}) hue-rotate(${custom.hue}deg) brightness(${(custom.extraBrightness + 100) / 100})`;
+  }
+}
+
 // Code to inject into the webview, to prevent jsPDF from intercepting keybinds
 const keyInterceptor: string = `
 var _ctrlCmdKeybinds = ["o", "p", "t", "w", "Tab", "F4", "PageUp", "PageDown", "ArrowLeft", "ArrowRight", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -32,6 +39,7 @@ const addPagechangeListener: string = `
 `;
 
 let activeFilterPreset: FilterPreset = "crispy";
+let currentFilterRule = "div#viewer .page {border-image: none;}";
 
 function setActiveFilterPreset(preset: FilterPreset) {
   activeFilterPreset = preset;
@@ -70,14 +78,9 @@ function setupTab(
     content?.executeJavaScript(keyInterceptor);
     // @ts-ignore
     content?.executeJavaScript(addPagechangeListener);
-    let style = "div#viewer .page {";
-    style +=
-      "filter: brightness(0.92) grayscale(0.0) invert(0.8) hue-rotate(180deg) brightness(0.7);";
-    style += "border-image: none;";
-    style += "}";
     // @ts-ignore
     content
-      ?.insertCSS(style)
+      ?.insertCSS(currentFilterRule)
       .then((key: string) => {
         console.info("inserted style", key);
         tabCssKey.set(tab, key);
@@ -142,6 +145,7 @@ function updateDarkSettings(
   cssRule += cssFilter;
   cssRule += "border-image: none;";
   cssRule += "}";
+  currentFilterRule = cssRule;
   tabGroup?.eachTab((tab) => {
     const content = tab.webview;
     if (content) {
@@ -391,6 +395,8 @@ function setupSliders(
           ),
         },
       });
+      const savedSettings = await window.api.GetSettings();
+      updateCustomPreview(savedSettings.filterPreferences.custom);
     });
   }
 
@@ -403,6 +409,17 @@ function setupSliders(
     extraBrightnessSliderElement,
     hueSliderElement,
     filterPreferences.custom,
+  );
+  updateCustomPreview(filterPreferences.custom);
+  updateCSS(
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    tabGroup,
+    tabCssKey,
   );
 }
 
@@ -456,4 +473,5 @@ export {
   focusTab,
   savePageNumber,
   setActiveFilterPreset,
+  updateCustomPreview,
 };

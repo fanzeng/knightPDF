@@ -22,7 +22,7 @@ import "electron-tabs";
 import type { Tab, TabGroup } from "electron-tabs";
 import type { API } from "nouislider";
 import { handlePresetChange } from "../helpers/sliders";
-import { hideDarkConfigurator, toggleDarkConfigurator } from "../helpers/css";
+import { hideDarkConfigurator, showDarkConfigurator } from "../helpers/css";
 import { openFile } from "../helpers/file";
 import type {
   Keybinds,
@@ -35,6 +35,8 @@ import {
   focusTab,
   savePageNumber,
   setActiveFilterPreset,
+  updateCustomPreview,
+  setupSliders,
 } from "../helpers/private";
 
 declare global {
@@ -46,6 +48,13 @@ declare global {
       SetBind(key: string, value: Keybinds): Promise<null>;
       SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
       GetOpenedFiles(): Promise<(OpenedFile | string)[]>;
+      showTabMenu(tabId: number, filename: string): void;
+      moveTabToWindow(
+        file: OpenedFile,
+        targetWindowId: number | null,
+      ): Promise<boolean>;
+      tabTransferReady(transferId: string): void;
+      pdfWindowReady(): void;
       ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
       RecordClosedTab(file: OpenedFile): Promise<null>;
       RemoveRecentlyClosedTab(filename: string): Promise<null>;
@@ -86,6 +95,7 @@ declare global {
 async function nightPDF() {
   console.log("loading");
   let filterPreferences = (await window.api.GetSettings()).filterPreferences;
+  updateCustomPreview(filterPreferences.custom);
   const appContainerElement: HTMLElement = document.getElementById(
     "appContainer",
   ) as HTMLElement;
@@ -158,6 +168,7 @@ async function nightPDF() {
   };
   const selectPreset = async (preset: FilterPreset) => {
     const settings = await window.api.GetSettings();
+    updateCustomPreview(settings.filterPreferences.custom);
     setActiveFilterPreset(preset);
     handlePresetChange(
       preset,
@@ -177,14 +188,28 @@ async function nightPDF() {
     await window.api.SetFilterPreferences(filterPreferences);
   };
   setActivePresetButton(filterPreferences.activePreset);
+  setupSliders(
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    tabGroup,
+    tabCssKey,
+    filterPreferences,
+  );
 
   const getDisplayName = (filename: string) =>
     filename.split(/[\\/]/).pop() || filename;
+  recentHistoryElement.addEventListener("click", (event: MouseEvent) => {
+    event.stopPropagation();
+  });
   const renderRecentHistory = async () => {
     const settings = await window.api.GetSettings();
     recentTabsElement.replaceChildren();
     recentWindowsElement.replaceChildren();
-    for (const file of settings.recentlyClosedTabs) {
+    for (const file of settings.recentlyClosedTabs.slice(0, 3)) {
       const button = document.createElement("button");
       button.className = "recent-entry";
       button.textContent = `${getDisplayName(file.filename)} (page ${file.pageNumber})`;
@@ -194,7 +219,10 @@ async function nightPDF() {
       });
       recentTabsElement.appendChild(button);
     }
-    for (const closedWindow of settings.recentlyClosedWindows) {
+    const recentWindows = settings.recentlyClosedWindows
+      .filter((closedWindow) => closedWindow.files.length > 0)
+      .slice(0, 3);
+    for (const closedWindow of recentWindows) {
       const firstFile = closedWindow.files[0];
       if (!firstFile) {
         continue;
@@ -251,6 +279,7 @@ async function nightPDF() {
       _e: Event,
       msg: string | [string | string[], number | number[]] | [string],
       debug = false,
+      transferId?: string,
     ) => {
       let page: number | number[] | null = null;
       let files: string | string[];
@@ -293,6 +322,43 @@ async function nightPDF() {
         page,
         debug,
       );
+      if (transferId) {
+        window.api.tabTransferReady(transferId);
+      }
+    },
+  );
+
+  window.api.on(
+    "move-tab-request",
+    async (_event: Event, tabId: number, targetWindowId: number | null) => {
+      const tab = tabGroup.getTabs().find((entry) => entry.id === tabId);
+      const filename = tab && tabFilePath.get(tab);
+      if (!tab || !filename) {
+        return;
+      }
+      const pageNumber = await savePageNumber(
+        tab.webview as webviewTag,
+        filename,
+      );
+      const files = await window.api.GetOpenedFiles();
+      const savedFile = files.find((file) =>
+        typeof file === "string"
+          ? file === filename
+          : file.filename === filename,
+      );
+      const moved = await window.api.moveTabToWindow(
+        {
+          filename,
+          pageNumber:
+            pageNumber ??
+            (typeof savedFile === "object" ? savedFile.pageNumber : 0),
+        },
+        targetWindowId,
+      );
+      if (moved && tabGroup.getTabs().includes(tab)) {
+        tabFilePath.delete(tab);
+        tab.close(false);
+      }
     },
   );
 
@@ -509,10 +575,28 @@ async function nightPDF() {
   });
 
   customizeButton.addEventListener("click", async (e: Event) => {
-    await selectPreset("custom");
-    darkConfiguratorElement.style.visibility = "visible";
     e.stopPropagation();
+    if (darkConfiguratorElement.style.visibility === "visible") {
+      hideDarkConfigurator(darkConfiguratorElement);
+      return;
+    }
+    await selectPreset("custom");
+    showDarkConfigurator(darkConfiguratorElement);
   });
+
+  document.addEventListener(
+    "pointerdown",
+    (event: PointerEvent) => {
+      const path = event.composedPath();
+      if (
+        !path.includes(darkConfiguratorElement) &&
+        !path.includes(customizeButton)
+      ) {
+        hideDarkConfigurator(darkConfiguratorElement);
+      }
+    },
+    true,
+  );
 
   headerElement.addEventListener("click", (_e: Event) => {
     hideDarkConfigurator(darkConfiguratorElement);
@@ -531,44 +615,53 @@ async function nightPDF() {
     }
   });
 
-  splashElement.ondrop = async (e: DragEvent, debug = false) => {
-    console.log("files dropped");
-    e.preventDefault();
-    e.stopPropagation();
+  document.addEventListener(
+    "drop",
+    async (e: DragEvent) => {
+      console.log("files dropped");
+      e.preventDefault();
+      e.stopPropagation();
 
-    const files = e.dataTransfer?.files;
+      const files = e.dataTransfer?.files;
 
-    if (!files || files.length === 0) {
-      return;
-    }
-    const settings = await window.api.GetSettings();
-    await openFile(
-      files,
-      closedFileHistory,
+      if (!files || files.length === 0) {
+        return;
+      }
+      const settings = await window.api.GetSettings();
+      await openFile(
+        files,
+        closedFileHistory,
 
-      tabGroup,
-      tabFilePath,
-      tabCssKey,
+        tabGroup,
+        tabFilePath,
+        tabCssKey,
 
-      appContainerElement,
-      splashElement,
-      headerElement,
-      brightnessSliderElement,
-      grayscaleSliderElement,
-      invertSliderElement,
-      sepiaSliderElement,
-      extraBrightnessSliderElement,
-      hueSliderElement,
-      settings.general.DisplayThumbs,
-      null,
-      debug,
-    );
-  };
-  splashElement.ondragover = (e: Event) => {
-    console.log("file dragged");
-    e.preventDefault();
-    e.stopPropagation();
-  };
+        appContainerElement,
+        splashElement,
+        headerElement,
+        brightnessSliderElement,
+        grayscaleSliderElement,
+        invertSliderElement,
+        sepiaSliderElement,
+        extraBrightnessSliderElement,
+        hueSliderElement,
+        settings.general.DisplayThumbs,
+        null,
+        false,
+      );
+    },
+    true,
+  );
+  document.addEventListener(
+    "dragover",
+    (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+      }
+    },
+    true,
+  );
+  window.api.pdfWindowReady();
 }
 
 await nightPDF();

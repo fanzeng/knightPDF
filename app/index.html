@@ -82,7 +82,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                     <div id="crispy-button" class="button active">Crispy</div>
                     <div id="sepia-button" class="button">Sepia</div>
                     <div id="gentle-button" class="button">Gentle</div>
-                    <div id="custom-button" class="button">Custom</div>
+                    <div id="custom-button" class="button"><span id="custom-preview">Custom</span></div>
                     <button
                         id="customize-button"
                         class="button"
@@ -90,7 +90,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                         title="Adjust custom filters"
                         aria-label="Adjust custom filters"
                     >
-                        Adjust
+                        <span aria-hidden="true">&#9881;&#65038;</span>
                     </button>
                 </div>
                 <style>
@@ -113,11 +113,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                         display: none;
                     }
                     #menu {
-                        width: 15vw;
+                        width: max-content;
+                        max-width: calc(100% - 12px);
+                        justify-content: flex-end;
                     }
                 </style>
             </div>
         </div>
+        <div id="filter-dismiss-layer" hidden></div>
         <div id="darkConfigurator">
             <h3>Settings</h3>
             <div id="slides">

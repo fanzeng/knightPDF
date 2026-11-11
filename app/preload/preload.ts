@@ -58,6 +58,22 @@ contextBridge.exposeInMainWorld("api", {
     return ipcRenderer.invoke("GetOpenedFiles");
   },
 
+  showTabMenu: (tabId: number, filename: string) => {
+    ipcRenderer.send("show-tab-menu", tabId, filename);
+  },
+
+  moveTabToWindow: (file: OpenedFile, targetWindowId: number | null) => {
+    return ipcRenderer.invoke("move-tab-to-window", file, targetWindowId);
+  },
+
+  tabTransferReady: (transferId: string) => {
+    ipcRenderer.send("tab-transfer-ready", transferId);
+  },
+
+  pdfWindowReady: () => {
+    ipcRenderer.send("pdf-window-ready");
+  },
+
   ReceivePageNumber: (filename: string, pageNumber: number) => {
     return ipcRenderer.invoke("ReceivePageNumber", filename, pageNumber);
   },

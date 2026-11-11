@@ -1,15 +1,25 @@
 function toggleDarkConfigurator(darkConfiguratorElement: HTMLElement) {
   if (darkConfiguratorElement.style.visibility === "visible") {
-    darkConfiguratorElement.style.visibility = "hidden";
+    hideDarkConfigurator(darkConfiguratorElement);
   } else {
-    darkConfiguratorElement.style.visibility = "visible";
+    showDarkConfigurator(darkConfiguratorElement);
+  }
+}
+
+function showDarkConfigurator(darkConfiguratorElement: HTMLElement) {
+  darkConfiguratorElement.style.visibility = "visible";
+  const dismissLayer = document.getElementById("filter-dismiss-layer");
+  if (dismissLayer) {
+    dismissLayer.hidden = false;
   }
 }
 
 function hideDarkConfigurator(darkConfiguratorElement: HTMLElement) {
-  if (darkConfiguratorElement.style.visibility === "visible") {
-    darkConfiguratorElement.style.visibility = "hidden";
+  darkConfiguratorElement.style.visibility = "hidden";
+  const dismissLayer = document.getElementById("filter-dismiss-layer");
+  if (dismissLayer) {
+    dismissLayer.hidden = true;
   }
 }
 
-export { hideDarkConfigurator, toggleDarkConfigurator };
+export { hideDarkConfigurator, showDarkConfigurator, toggleDarkConfigurator };

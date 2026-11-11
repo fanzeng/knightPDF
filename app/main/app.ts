@@ -36,7 +36,7 @@ import { parse, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { version } from "../../package.json";
 import { autoUpdater } from "electron-updater";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import localShortcut from "electron-localshortcut";
 import log from "electron-log";
 import yargs from "yargs";
@@ -81,6 +81,7 @@ const store = makeStore({
 });
 
 let wins: BrowserWindow[] = [];
+const readyPDFWindows = new Set<number>();
 let updaterCheckStarted = false;
 const windowSessionIds = new Map<number, string>();
 const closeApprovals = new Set<number>();
@@ -146,12 +147,36 @@ function normalizeOpenedFiles(files: (OpenedFile | string)[]): OpenedFile[] {
     const filename = normalizeFilename(
       typeof file === "string" ? file : file.filename,
     );
+    try {
+      if (statSync(filename, { throwIfNoEntry: false })?.isDirectory()) {
+        continue;
+      }
+    } catch (error) {
+      log.debug("Unable to inspect document path", error);
+    }
     normalized.set(filename, {
       filename,
       pageNumber: typeof file === "string" ? 0 : file.pageNumber,
     });
   }
   return [...normalized.values()];
+}
+
+for (const key of ["openedGroups", "recentlyClosedWindows"] as const) {
+  const groups = store.get(key);
+  const documentGroups = groups
+    .map((group) => ({ ...group, files: normalizeOpenedFiles(group.files) }))
+    .filter((group) => group.files.length > 0);
+  if (JSON.stringify(groups) !== JSON.stringify(documentGroups)) {
+    store.set(key, documentGroups);
+  }
+}
+const closedTabs = store.get("recentlyClosedTabs");
+const documentTabs = closedTabs.filter(
+  (file) => normalizeOpenedFiles([file]).length > 0,
+);
+if (documentTabs.length !== closedTabs.length) {
+  store.set("recentlyClosedTabs", documentTabs);
 }
 
 function getOpenedGroupFiles(sessionId: string): OpenedFile[] {
@@ -224,16 +249,17 @@ function rememberClosedTab(file: OpenedFile) {
 }
 
 function rememberClosedWindow(files: OpenedFile[]) {
-  if (files.length === 0) {
+  const documentFiles = normalizeOpenedFiles(files);
+  if (documentFiles.length === 0) {
     return;
   }
   const recentWindows: OpenedWindow[] = store.get("recentlyClosedWindows");
   store.set(
     "recentlyClosedWindows",
-    [
-      { id: randomUUID(), files: normalizeOpenedFiles(files) },
-      ...recentWindows,
-    ].slice(0, MAX_RECENTLY_CLOSED),
+    [{ id: randomUUID(), files: documentFiles }, ...recentWindows].slice(
+      0,
+      MAX_RECENTLY_CLOSED,
+    ),
   );
   refreshRecentlyClosedMenus();
 }
@@ -469,10 +495,10 @@ function createWindow(
   // Create the browser window.
   const win = new BrowserWindow({
     width: 550,
-    height: 420,
+    height: 600,
     minWidth: 565,
     icon: join(__dirname, "../assets/icon.png"),
-    minHeight: 200,
+    minHeight: 580,
     webPreferences: {
       sandbox: true,
       webviewTag: true,
@@ -512,6 +538,9 @@ function createWindow(
 
   win.loadFile(join(__dirname, "../index.html"));
   const wc = win.webContents;
+  wc.on("will-attach-webview", (_event, preferences) => {
+    preferences.preload = resolve(join(__dirname, "../preload/pdf.js"));
+  });
   // if the window url changes from the inital one,
   // block the change and use xdg-open to open it
   // @ts-ignore - will-navigate is not in the type definition
@@ -552,6 +581,7 @@ function createWindow(
     }
     wins = wins.filter((openWin) => openWin !== win && !openWin.isDestroyed());
     windowSessionIds.delete(webContentsId);
+    readyPDFWindows.delete(webContentsId);
     closeApprovals.delete(webContentsId);
     closeWaiters.delete(webContentsId);
     const timeout = closeTimeouts.get(webContentsId);
@@ -595,6 +625,26 @@ function createWindow(
 
     ipcMain.handle("ResolvePath", (_e: IpcMainInvokeEvent, args: string) => {
       return resolve(args);
+    });
+
+    ipcMain.on("open-dropped-pdfs", (event, filenames: string[]) => {
+      const owner = event.sender.hostWebContents;
+      const targetWin = wins.find(
+        (openWin) => !openWin.isDestroyed() && openWin.webContents === owner,
+      );
+      if (!targetWin || !Array.isArray(filenames)) {
+        return;
+      }
+      const files = normalizeOpenedFiles(
+        filenames.filter(
+          (filename) =>
+            typeof filename === "string" && /\.pdf$/i.test(filename),
+        ),
+      ).map((file) => file.filename);
+      if (files.length > 0) {
+        appendOpenedFiles(targetWin, files);
+        targetWin.webContents.send("file-open", files);
+      }
     });
 
     ipcMain.on("openExternal", async (_e: IpcMainEvent, url: string) => {
@@ -643,6 +693,128 @@ function createWindow(
       const sessionId = windowSessionIds.get(event.sender.id);
       return sessionId ? getOpenedGroupFiles(sessionId) : [];
     });
+    ipcMain.on("pdf-window-ready", (event) => {
+      if (windowSessionIds.has(event.sender.id)) {
+        readyPDFWindows.add(event.sender.id);
+      }
+    });
+    ipcMain.on("show-tab-menu", (event, tabId: number, filename: string) => {
+      const source = wins.find((win) => win.webContents === event.sender);
+      if (!source) {
+        return;
+      }
+      const requestMove = (targetWindowId: number | null) => {
+        if (!source.isDestroyed()) {
+          source.webContents.send("move-tab-request", tabId, targetWindowId);
+        }
+      };
+      const destinations: MenuItemConstructorOptions[] = wins
+        .filter((win) => win !== source && !win.isDestroyed())
+        .map((win) => {
+          const sessionId = windowSessionIds.get(win.webContents.id);
+          const firstFile = sessionId && getOpenedGroupFiles(sessionId)[0];
+          return {
+            label: `${firstFile ? parse(firstFile.filename).base : "Empty window"} (${win.id})`,
+            click: () => requestMove(win.id),
+          };
+        });
+      Menu.buildFromTemplate([
+        { label: `Move ${parse(filename).base}`, enabled: false },
+        { label: "Move Tab to New Window", click: () => requestMove(null) },
+        {
+          label: "Move Tab to Window",
+          enabled: destinations.length > 0,
+          submenu: destinations,
+        },
+      ]).popup({ window: source });
+    });
+    ipcMain.handle(
+      "move-tab-to-window",
+      async (event, file: OpenedFile, targetWindowId: number | null) => {
+        const source = wins.find((win) => win.webContents === event.sender);
+        const sessionId = windowSessionIds.get(event.sender.id);
+        if (!source || !sessionId) {
+          return false;
+        }
+        const filename = normalizeFilename(file.filename);
+        if (
+          !getOpenedGroupFiles(sessionId).some(
+            (entry) => entry.filename === filename,
+          )
+        ) {
+          return false;
+        }
+        const destination =
+          targetWindowId === null
+            ? createWindow()
+            : wins.find(
+                (win) =>
+                  win.id === targetWindowId &&
+                  win !== source &&
+                  !win.isDestroyed(),
+              );
+        if (!destination) {
+          return false;
+        }
+        const transferId = randomUUID();
+        const destinationId = destination.webContents.id;
+        const moved = await new Promise<boolean>((resolveMove) => {
+          const finish = (success: boolean) => {
+            clearTimeout(timeout);
+            ipcMain.removeListener("pdf-window-ready", onReady);
+            ipcMain.removeListener("tab-transfer-ready", onTransferred);
+            resolveMove(success);
+          };
+          const send = () => {
+            if (destination.isDestroyed()) {
+              finish(false);
+              return;
+            }
+            destination.webContents.send(
+              "file-open",
+              [[filename], [file.pageNumber]],
+              false,
+              transferId,
+            );
+          };
+          const onReady = (readyEvent: IpcMainEvent) => {
+            if (readyEvent.sender.id === destinationId) {
+              send();
+            }
+          };
+          const onTransferred = (
+            readyEvent: IpcMainEvent,
+            receivedId: string,
+          ) => {
+            if (
+              readyEvent.sender.id === destinationId &&
+              receivedId === transferId
+            ) {
+              finish(true);
+            }
+          };
+          const timeout = setTimeout(() => finish(false), 10000);
+          ipcMain.on("pdf-window-ready", onReady);
+          ipcMain.on("tab-transfer-ready", onTransferred);
+          if (readyPDFWindows.has(destinationId)) {
+            send();
+          }
+        });
+        if (moved) {
+          setOpenedGroupFiles(
+            sessionId,
+            getOpenedGroupFiles(sessionId).filter(
+              (entry) => entry.filename !== filename,
+            ),
+          );
+          if (!destination.isDestroyed()) {
+            destination.show();
+            destination.focus();
+          }
+        }
+        return moved;
+      },
+    );
     ipcMain.handle(
       "ReceivePageNumber",
       (event: IpcMainInvokeEvent, filename: string, pageNumber: number) => {
@@ -778,6 +950,7 @@ function createWindow(
       openNewPDF(openInNewWindow ?? store.get("general").MultiWindow);
     },
   );
+  return win;
 }
 
 let fileToOpen: string | (OpenedFile | string)[] = "";
@@ -804,7 +977,7 @@ const argv = yargs
   .parseSync();
 
 const { p, _ } = argv;
-const pdf = _ as string[]; // string[] or number[] force only string[]
+const pdf = normalizeOpenedFiles(_ as string[]).map((file) => file.filename);
 
 if (pdf.length > 0) {
   fileToOpen = pdf;
