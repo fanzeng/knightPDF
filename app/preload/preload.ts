@@ -70,6 +70,14 @@ contextBridge.exposeInMainWorld("api", {
     return ipcRenderer.invoke("RemoveRecentlyClosedTab", filename);
   },
 
+  restoreRecentlyClosedTab: (id: string) => {
+    ipcRenderer.send("restoreRecentlyClosedTab", id);
+  },
+
+  restoreRecentlyClosedWindow: (id: string) => {
+    ipcRenderer.send("restoreRecentlyClosedWindow", id);
+  },
+
   removeAllListeners: (ListenerType: string) => {
     ipcRenderer.removeAllListeners(ListenerType);
   },

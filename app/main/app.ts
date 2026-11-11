@@ -322,6 +322,11 @@ function buildApplicationMenu(): Menu {
 
 function refreshRecentlyClosedMenus() {
   Menu.setApplicationMenu(buildApplicationMenu());
+  for (const win of wins) {
+    if (!win.isDestroyed()) {
+      win.webContents.send("recent-history-updated");
+    }
+  }
 }
 
 function reopenRecentlyClosedTab(id: string) {
@@ -685,6 +690,12 @@ function createWindow(
         }
       },
     );
+    ipcMain.on("restoreRecentlyClosedTab", (_event, id: string) => {
+      reopenRecentlyClosedTab(id);
+    });
+    ipcMain.on("restoreRecentlyClosedWindow", (_event, id: string) => {
+      reopenRecentlyClosedWindow(id);
+    });
 
     ipcMain.handle("GetSettings", (_e: IpcMainInvokeEvent) => {
       return store.store;

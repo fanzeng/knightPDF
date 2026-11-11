@@ -113,13 +113,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                         display: none;
                     }
                     #menu {
-                        position: relative;
-                        right: auto;
-                        width: auto;
-                        max-width: 50%;
-                        flex: 0 0 auto;
-                        margin-left: auto;
-                        justify-content: flex-end;
+                        width: 15vw;
                     }
                 </style>
             </div>
@@ -149,6 +143,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
             </div>
             <div id="splash-extra">
                 <h3 id="prompt">Open File with Ctrl/Cmd+O</h3>
+            </div>
+            <div id="recent-history" hidden>
+                <section>
+                    <h4>Recently Closed Tabs</h4>
+                    <div id="recent-tabs"></div>
+                </section>
+                <section>
+                    <h4>Recently Closed Windows</h4>
+                    <div id="recent-windows"></div>
+                </section>
             </div>
         </div>
         <script type="module" src="./render/index.js"></script>

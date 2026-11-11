@@ -49,6 +49,8 @@ declare global {
       ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
       RecordClosedTab(file: OpenedFile): Promise<null>;
       RemoveRecentlyClosedTab(filename: string): Promise<null>;
+      restoreRecentlyClosedTab(id: string): null;
+      restoreRecentlyClosedWindow(id: string): null;
       GetSettings(): Promise<NightPDFSettings>;
       SetFilterPreferences(filterPreferences: FilterPreferences): Promise<null>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
@@ -114,6 +116,15 @@ async function nightPDF() {
   const splashElement: HTMLElement = document.getElementById(
     "splash-container",
   ) as HTMLElement;
+  const recentHistoryElement: HTMLElement = document.getElementById(
+    "recent-history",
+  ) as HTMLElement;
+  const recentTabsElement: HTMLElement = document.getElementById(
+    "recent-tabs",
+  ) as HTMLElement;
+  const recentWindowsElement: HTMLElement = document.getElementById(
+    "recent-windows",
+  ) as HTMLElement;
   const crispyButton: HTMLElement = document.getElementById(
     "crispy-button",
   ) as HTMLElement;
@@ -166,6 +177,47 @@ async function nightPDF() {
     await window.api.SetFilterPreferences(filterPreferences);
   };
   setActivePresetButton(filterPreferences.activePreset);
+
+  const getDisplayName = (filename: string) =>
+    filename.split(/[\\/]/).pop() || filename;
+  const renderRecentHistory = async () => {
+    const settings = await window.api.GetSettings();
+    recentTabsElement.replaceChildren();
+    recentWindowsElement.replaceChildren();
+    for (const file of settings.recentlyClosedTabs) {
+      const button = document.createElement("button");
+      button.className = "recent-entry";
+      button.textContent = `${getDisplayName(file.filename)} (page ${file.pageNumber})`;
+      button.title = button.textContent;
+      button.addEventListener("click", () => {
+        window.api.restoreRecentlyClosedTab(file.id);
+      });
+      recentTabsElement.appendChild(button);
+    }
+    for (const closedWindow of settings.recentlyClosedWindows) {
+      const firstFile = closedWindow.files[0];
+      if (!firstFile) {
+        continue;
+      }
+      const extraCount = closedWindow.files.length - 1;
+      const button = document.createElement("button");
+      button.className = "recent-entry";
+      button.textContent = `${getDisplayName(firstFile.filename)}${extraCount > 0 ? ` (+${extraCount} more)` : ""}`;
+      button.title = button.textContent;
+      button.addEventListener("click", () => {
+        window.api.restoreRecentlyClosedWindow(closedWindow.id);
+      });
+      recentWindowsElement.appendChild(button);
+    }
+    recentHistoryElement.hidden =
+      settings.recentlyClosedTabs.length === 0 &&
+      settings.recentlyClosedWindows.length === 0;
+  };
+  void renderRecentHistory();
+  window.api.removeAllListeners("recent-history-updated");
+  window.api.on("recent-history-updated", () => {
+    void renderRecentHistory();
+  });
 
   appContainerElement.style.display = "none";
   tabGroup?.on("ready", (tabGroup: TabGroup) => {

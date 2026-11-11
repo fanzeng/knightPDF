@@ -47,6 +47,44 @@
 	user-select: none
 	h3
 		font-size: 16.64px
+#recent-history
+	position: absolute
+	top: 350px
+	bottom: 12px
+	left: 50%
+	transform: translateX(-50%)
+	width: min(520px, calc(100% - 24px))
+	max-height: calc(100vh - 362px)
+	display: grid
+	grid-template-columns: repeat(2, minmax(0, 1fr))
+	gap: 16px
+	overflow: auto
+	color: #cccccc
+	&[hidden]
+		display: none
+	section
+		min-width: 0
+	h4
+		margin: 0 0 6px
+		font-size: 13px
+		font-weight: 600
+	.recent-entry
+		display: block
+		width: 100%
+		margin: 0 0 4px
+		padding: 4px 6px
+		border: 1px solid #444444
+		border-radius: 3px
+		background: #2d2d2d
+		color: #cccccc
+		text-align: left
+		text-overflow: ellipsis
+		overflow: hidden
+		white-space: nowrap
+		cursor: pointer
+		&:hover
+			background: #454d47
+			color: #ffffff
 #appContainer
 	position: absolute
 	width: 100%
