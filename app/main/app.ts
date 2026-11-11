@@ -867,7 +867,7 @@ app.whenReady().then(() => {
 
   const sm: MenuItemConstructorOptions[] = [];
   for (const action of keybinds.actions) {
-    const kb = keybinds.getActionKeybindsTrigger(action);
+    const triggers = keybinds.getActionKeybindsTrigger(action);
     const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
       if (focusedWin) {
@@ -877,16 +877,13 @@ app.whenReady().then(() => {
         );
       }
     };
-    // try {
-    //   localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
-    // } catch (e) {
-    //   console.log(e);
-    // }
-    sm.push({
-      label: action,
-      accelerator: kb?.length > 0 ? kb[0] : "",
-      click: cb,
-    });
+    for (const [index, accelerator] of triggers.entries()) {
+      sm.push({
+        label: `${keybinds.getActionDisplayName(action)}${index > 0 ? " (alternate)" : ""}`,
+        accelerator,
+        click: cb,
+      });
+    }
   }
 
   // register Ctrl+1 to Ctrl+9 shortcuts

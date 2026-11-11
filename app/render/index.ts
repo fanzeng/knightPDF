@@ -359,29 +359,26 @@ async function nightPDF() {
   window.api.removeAllListeners("switch-tab");
   window.api.on("switch-tab", (_e: Event, msg: string | number) => {
     const tab = tabGroup?.getActiveTab();
-    // There is a bug in electron-tabs where
-    // selecting the previous tab with "getPreviousTab" will never work if the previous
-    // tab position === 0, see:
-    // https://github.com/brrd/electron-tabs/blob/master/src/index.ts#L231
-
-    // tabgroup methods return null if there is no tab
     let target: Tab | null | undefined = null;
     if (tab) {
       if (typeof msg === "string") {
+        const tabCount = tabGroup?.getTabs().length ?? 0;
+        const currentPosition = tab.getPosition();
         switch (msg) {
           case "next":
-            console.log("switching to next tab");
-            target = tabGroup?.getNextTab();
-            break;
-          case "prev": {
-            console.log("switching to previous tab");
-            // target = _tabGroup?.getPreviousTab();
-            const targetPos = tab.getPosition() - 1;
-            if (targetPos >= 0) {
-              target = tabGroup?.getTabByPosition(targetPos);
+            if (tabCount > 1) {
+              target = tabGroup?.getTabByPosition(
+                (currentPosition + 1) % tabCount,
+              );
             }
             break;
-          }
+          case "prev":
+            if (tabCount > 1) {
+              target = tabGroup?.getTabByPosition(
+                (currentPosition - 1 + tabCount) % tabCount,
+              );
+            }
+            break;
         }
       } else {
         if (msg >= 1 && msg <= 8) {
