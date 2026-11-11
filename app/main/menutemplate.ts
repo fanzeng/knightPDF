@@ -2,15 +2,11 @@ import type { MenuItemConstructorOptions } from "electron";
 import { shell } from "electron";
 import { openSettings } from "./settings";
 
-function recentItems(prefix: string): MenuItemConstructorOptions[] {
-  return Array.from({ length: 10 }, (_, index) => ({
-    label: "",
-    id: `${prefix}-${index}`,
-    visible: false,
-  }));
-}
-
-function createMenu() {
+function createMenu(
+  recentlyClosedTabs: MenuItemConstructorOptions[],
+  recentlyClosedWindows: MenuItemConstructorOptions[],
+  navigateMenu?: MenuItemConstructorOptions[],
+) {
   const menuTemplate: MenuItemConstructorOptions[] = [];
   menuTemplate.push(
     {
@@ -35,26 +31,18 @@ function createMenu() {
         {
           label: "Recently Closed Tabs",
           id: "file-recent-tabs",
-          submenu: [
-            {
-              label: "No recently closed tabs",
-              id: "file-recent-tabs-empty",
-              enabled: false,
-            },
-            ...recentItems("file-recent-tab"),
-          ],
+          submenu:
+            recentlyClosedTabs.length > 0
+              ? recentlyClosedTabs
+              : [{ label: "No recently closed tabs", enabled: false }],
         },
         {
           label: "Recently Closed Windows",
           id: "file-recent-windows",
-          submenu: [
-            {
-              label: "No recently closed windows",
-              id: "file-recent-windows-empty",
-              enabled: false,
-            },
-            ...recentItems("file-recent-window"),
-          ],
+          submenu:
+            recentlyClosedWindows.length > 0
+              ? recentlyClosedWindows
+              : [{ label: "No recently closed windows", enabled: false }],
         },
         { type: "separator" },
         {
@@ -143,6 +131,9 @@ function createMenu() {
       ],
     },
   );
+  if (navigateMenu) {
+    menuTemplate.push({ label: "Navigate", submenu: navigateMenu });
+  }
   return menuTemplate;
 }
 

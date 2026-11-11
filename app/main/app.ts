@@ -21,7 +21,7 @@ import {
   app,
   BrowserWindow,
   Menu,
-  MenuItem,
+  type MenuItem,
   type MenuItemConstructorOptions,
   dialog,
   ipcMain,
@@ -252,51 +252,62 @@ function findMenuItem(menu: Menu, id: string): MenuItem | undefined {
   }
 }
 
-function refreshRecentlyClosedMenus() {
-  const menu = Menu.getApplicationMenu();
-  if (!menu) {
-    return;
-  }
+let openPdfDialog: (openInNewWindow?: boolean) => void = () => {};
+let printingEnabled = false;
+let navigateMenuItems: MenuItemConstructorOptions[] | undefined;
 
-  const closedTabs = store.get("recentlyClosedTabs");
-  const emptyTabsItem = findMenuItem(menu, "file-recent-tabs-empty");
-  if (emptyTabsItem) {
-    emptyTabsItem.visible = closedTabs.length === 0;
-  }
-  for (let index = 0; index < MAX_RECENTLY_CLOSED; index++) {
-    const item = findMenuItem(menu, `file-recent-tab-${index}`);
-    const file = closedTabs[index];
-    if (item) {
-      item.visible = Boolean(file);
-      item.enabled = Boolean(file);
-      if (file) {
-        item.label = `${parse(file.filename).base} (page ${file.pageNumber})`;
-        item.click = () => reopenRecentlyClosedTab(file.id);
-      }
-    }
-  }
-
-  const closedWindows = store
+function buildApplicationMenu(): Menu {
+  const recentlyClosedTabs: MenuItemConstructorOptions[] = store
+    .get("recentlyClosedTabs")
+    .map((file) => ({
+      label: `${parse(file.filename).base} (page ${file.pageNumber})`,
+      click: () => reopenRecentlyClosedTab(file.id),
+    }));
+  const recentlyClosedWindows: MenuItemConstructorOptions[] = store
     .get("recentlyClosedWindows")
-    .filter((closedWindow) => closedWindow.files.length > 0);
-  const emptyWindowsItem = findMenuItem(menu, "file-recent-windows-empty");
-  if (emptyWindowsItem) {
-    emptyWindowsItem.visible = closedWindows.length === 0;
+    .filter((closedWindow) => closedWindow.files.length > 0)
+    .map((closedWindow) => {
+      const firstFile = closedWindow.files[0];
+      const extraCount = closedWindow.files.length - 1;
+      return {
+        label: `${parse(firstFile.filename).base}${extraCount > 0 ? ` (+${extraCount} more)` : ""}`,
+        click: () => reopenRecentlyClosedWindow(closedWindow.id),
+      };
+    });
+  const menu = Menu.buildFromTemplate(
+    createMenu(recentlyClosedTabs, recentlyClosedWindows, navigateMenuItems),
+  );
+  const fileNewTab = findMenuItem(menu, "file-new-tab");
+  const fileOpen = findMenuItem(menu, "file-open");
+  const fileNewWindow = findMenuItem(menu, "file-new-window");
+  const print = findMenuItem(menu, "file-print");
+  const fileQuit = findMenuItem(menu, "file-quit");
+
+  if (fileNewTab) {
+    fileNewTab.click = () => openPdfDialog(false);
   }
-  for (let index = 0; index < MAX_RECENTLY_CLOSED; index++) {
-    const item = findMenuItem(menu, `file-recent-window-${index}`);
-    const closedWindow = closedWindows[index];
-    if (item) {
-      item.visible = Boolean(closedWindow);
-      item.enabled = Boolean(closedWindow);
-      if (closedWindow) {
-        const firstFile = closedWindow.files[0];
-        const extraCount = closedWindow.files.length - 1;
-        item.label = `${parse(firstFile.filename).base}${extraCount > 0 ? ` (+${extraCount} more)` : ""}`;
-        item.click = () => reopenRecentlyClosedWindow(closedWindow.id);
-      }
-    }
+  if (fileOpen) {
+    fileOpen.click = () => openPdfDialog();
   }
+  if (fileNewWindow) {
+    fileNewWindow.click = () => createWindow();
+  }
+  if (print) {
+    print.enabled = printingEnabled;
+    print.click = () => {
+      const focusedWin = BrowserWindow.getFocusedWindow();
+      focusedWin?.webContents.send("file-print");
+    };
+  }
+  if (fileQuit) {
+    fileQuit.click = () => app.quit();
+  }
+
+  return menu;
+}
+
+function refreshRecentlyClosedMenus() {
+  Menu.setApplicationMenu(buildApplicationMenu());
 }
 
 function reopenRecentlyClosedTab(id: string) {
@@ -555,44 +566,9 @@ function createWindow(
   });
 
   if (!menuIsConfigured) {
-    const template = createMenu();
-    const menu = Menu.buildFromTemplate(template);
-    const file_new_tab = menu.getMenuItemById("file-new-tab");
-    const file_open = menu.getMenuItemById("file-open");
-    const file_new_window = menu.getMenuItemById("file-new-window");
-    const print = menu.getMenuItemById("file-print");
-    const file_quit = menu.getMenuItemById("file-quit");
-
-    if (file_new_tab) {
-      file_new_tab.click = () => {
-        openNewPDF(false);
-      };
-    }
-
-    if (file_open) {
-      file_open.click = () => {
-        openNewPDF();
-      };
-    }
-
-    if (file_new_window) {
-      file_new_window.click = () => {
-        createWindow();
-      };
-    }
-
-    if (print) {
-      print.click = () => {
-        const focusedWin = BrowserWindow.getFocusedWindow();
-        if (focusedWin) {
-          focusedWin.webContents.send("file-print");
-        }
-      };
-    }
-
-    if (file_quit) {
-      file_quit.click = () => app.quit();
-    }
+    Menu.setApplicationMenu(buildApplicationMenu());
+    menuIsConfigured = true;
+    refreshRecentlyClosedMenus();
 
     ipcMain.handle("getPath", (_e: IpcMainInvokeEvent, args: string) => {
       return getpath(args);
@@ -703,9 +679,6 @@ function createWindow(
     ipcMain.handle("GetVersion", (_e: IpcMainInvokeEvent) => {
       return versionString();
     });
-    Menu.setApplicationMenu(menu);
-    menuIsConfigured = true;
-    refreshRecentlyClosedMenus();
   }
 
   const openNewPDF = (openInNewWindow = store.get("general").MultiWindow) => {
@@ -737,14 +710,16 @@ function createWindow(
       }
     });
   };
+  openPdfDialog = openNewPDF;
 
   ipcMain.removeAllListeners("togglePrinting");
   ipcMain.on("togglePrinting", (_e: IpcMainEvent, msg: string) => {
+    printingEnabled = Boolean(msg);
     const menu = Menu.getApplicationMenu();
     if (menu) {
-      const print = menu.getMenuItemById("file-print");
+      const print = findMenuItem(menu, "file-print");
       if (print) {
-        print.enabled = Boolean(msg);
+        print.enabled = printingEnabled;
       }
     }
   });
@@ -934,14 +909,8 @@ app.whenReady().then(() => {
       click: cb,
     });
   }
-  const menu = Menu.getApplicationMenu() || new Menu();
-  menu.append(
-    new MenuItem({
-      label: "Navigate",
-      submenu: sm,
-    }),
-  );
-  Menu.setApplicationMenu(menu);
+  navigateMenuItems = sm;
+  refreshRecentlyClosedMenus();
 });
 
 app.on("window-all-closed", () => {
