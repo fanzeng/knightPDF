@@ -29,20 +29,49 @@ function createMenu(
           accelerator: "CmdOrCtrl+O",
         },
         {
-          label: "Recently Closed Tabs",
-          id: "file-recent-tabs",
-          submenu:
-            recentlyClosedTabs.length > 0
-              ? recentlyClosedTabs
-              : [{ label: "No recently closed tabs", enabled: false }],
-        },
-        {
-          label: "Recently Closed Windows",
-          id: "file-recent-windows",
-          submenu:
-            recentlyClosedWindows.length > 0
-              ? recentlyClosedWindows
-              : [{ label: "No recently closed windows", enabled: false }],
+          label: "Open Recent",
+          submenu: [
+            {
+              label: "Recently Closed Tabs",
+              id: "file-recent-tabs",
+              submenu:
+                recentlyClosedTabs.length > 0
+                  ? [
+                      ...recentlyClosedTabs,
+                      { type: "separator" },
+                      {
+                        label: "Clear Recently Closed Tabs",
+                        id: "file-clear-recent-tabs",
+                      },
+                    ]
+                  : [
+                      {
+                        label: "No recently closed tabs",
+                        enabled: false,
+                      },
+                    ],
+            },
+            {
+              label: "Recently Closed Windows",
+              id: "file-recent-windows",
+              submenu:
+                recentlyClosedWindows.length > 0
+                  ? [
+                      ...recentlyClosedWindows,
+                      { type: "separator" },
+                      {
+                        label: "Clear Recently Closed Windows",
+                        id: "file-clear-recent-windows",
+                      },
+                    ]
+                  : [
+                      {
+                        label: "No recently closed windows",
+                        enabled: false,
+                      },
+                    ],
+            },
+          ],
         },
         { type: "separator" },
         {

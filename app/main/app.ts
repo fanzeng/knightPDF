@@ -282,6 +282,8 @@ function buildApplicationMenu(): Menu {
   const fileNewWindow = findMenuItem(menu, "file-new-window");
   const print = findMenuItem(menu, "file-print");
   const fileQuit = findMenuItem(menu, "file-quit");
+  const clearRecentTabs = findMenuItem(menu, "file-clear-recent-tabs");
+  const clearRecentWindows = findMenuItem(menu, "file-clear-recent-windows");
 
   if (fileNewTab) {
     fileNewTab.click = () => openPdfDialog(false);
@@ -301,6 +303,18 @@ function buildApplicationMenu(): Menu {
   }
   if (fileQuit) {
     fileQuit.click = () => app.quit();
+  }
+  if (clearRecentTabs) {
+    clearRecentTabs.click = () => {
+      store.set("recentlyClosedTabs", []);
+      refreshRecentlyClosedMenus();
+    };
+  }
+  if (clearRecentWindows) {
+    clearRecentWindows.click = () => {
+      store.set("recentlyClosedWindows", []);
+      refreshRecentlyClosedMenus();
+    };
   }
 
   return menu;
