@@ -1,5 +1,6 @@
 import type { TabGroup, Tab } from "electron-tabs";
-import { setupSliders, setupTab, focusTab } from "./private";
+import type { OpenedFile } from "./settings";
+import { setupTab, focusTab, savePageNumber } from "./private";
 
 async function openFile(
   files: string | string[] | FileList,
@@ -23,13 +24,8 @@ async function openFile(
   page: number | number[] | null = null,
   debug = false,
 ) {
-  let slidersInitialized: boolean;
-  if (sessionStorage.getItem("slidersInitialized")) {
-    slidersInitialized = true;
-  } else {
-    slidersInitialized = false;
-  }
   const tabs = tabGroup?.getTabs();
+  const openedFilesToPersist: OpenedFile[] = [];
   if (!tabs || tabs.length === 0) {
     console.debug("No tabs yet, creating new tab");
   }
@@ -56,8 +52,14 @@ async function openFile(
     });
 
     let pageArg = "";
-    if (Array.isArray(page) && i < page.length && page[i]) {
-      pageArg = `page=${page[i]}`;
+    const pageNumber = Array.isArray(page)
+      ? page[i] ?? 0
+      : typeof page === "number"
+        ? page
+        : 0;
+    const pageToRestore = Array.isArray(page) ? page[i] : i === 0 ? page : null;
+    if (typeof pageToRestore === "number" && pageToRestore > 0) {
+      pageArg = `page=${pageToRestore}`;
     } else {
       console.log("Cannot open to last visited pages:", file);
       pageArg = "";
@@ -72,6 +74,10 @@ async function openFile(
     }
 
     if (!fileAlreadyOpen) {
+      openedFilesToPersist.push({
+        filename: resolved_file,
+        pageNumber,
+      });
       const entry = {
         title: `\u202A${title}\u202A`,
         active: true,
@@ -84,22 +90,7 @@ async function openFile(
           appContainerElement.style.display = "block";
           splashElement.style.display = "none";
           window.api.togglePrinting(true);
-          setupTab(tab, tabCssKey, debug);
-          if (slidersInitialized === false) {
-            sessionStorage.setItem("slidersInitialized", "true");
-            console.debug("setting up sliders");
-            setupSliders(
-              brightnessSliderElement,
-              grayscaleSliderElement,
-              invertSliderElement,
-              sepiaSliderElement,
-              extraBrightnessSliderElement,
-              hueSliderElement,
-              tabGroup,
-              tabCssKey,
-            );
-            slidersInitialized = true;
-          }
+          setupTab(tab, tabCssKey, resolved_file, debug);
           focusTab(tab);
         },
       };
@@ -114,7 +105,12 @@ async function openFile(
       }
       const tab = tabGroup?.addTab(entry);
       const webview = tab?.webview as webviewTag;
-      tabFilePath.set(tab, path);
+      tabFilePath.set(tab, resolved_file);
+      tab.element.addEventListener("contextmenu", (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.api.showTabMenu(tab.id, resolved_file);
+      });
       webview.addEventListener("will-navigate", (e) => {
         const event = e as EventNav;
         const url = event.url;
@@ -126,11 +122,27 @@ async function openFile(
           }
         }
       });
-      tab?.on("close", () => {
+      tab?.on("close", async () => {
         console.debug("tab closed");
         const tabFile = tabFilePath.get(tab);
         if (tabFile) {
           closedFileHistory.push(tabFile);
+          const pageNumber = await savePageNumber(
+            tab.webview as webviewTag,
+            tabFile,
+          );
+          await window.api.RecordClosedTab({
+            filename: tabFile,
+            pageNumber: pageNumber ?? 0,
+          });
+          const openedFiles = await window.api.GetOpenedFiles();
+          await window.api.SetOpenedFiles(
+            openedFiles.filter((file) =>
+              typeof file === "string"
+                ? file !== tabFile
+                : file.filename !== tabFile,
+            ),
+          );
         }
         tabFilePath.delete(tab);
         tabGroup?.tabs.length;
@@ -142,6 +154,21 @@ async function openFile(
         }
       });
     }
+  }
+  if (openedFilesToPersist.length > 0) {
+    const currentFiles = await window.api.GetOpenedFiles();
+    const filesByPath = new Map(
+      currentFiles.map((file) => [
+        typeof file === "string" ? file : file.filename,
+        typeof file === "string" ? { filename: file, pageNumber: 0 } : file,
+      ]),
+    );
+    for (const file of openedFilesToPersist) {
+      if (!filesByPath.has(file.filename)) {
+        filesByPath.set(file.filename, file);
+      }
+    }
+    await window.api.SetOpenedFiles([...filesByPath.values()]);
   }
   return true;
 }

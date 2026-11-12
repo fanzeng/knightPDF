@@ -22,14 +22,22 @@ import "electron-tabs";
 import type { Tab, TabGroup } from "electron-tabs";
 import type { API } from "nouislider";
 import { handlePresetChange } from "../helpers/sliders";
-import { hideDarkConfigurator, toggleDarkConfigurator } from "../helpers/css";
+import { hideDarkConfigurator, showDarkConfigurator } from "../helpers/css";
 import { openFile } from "../helpers/file";
 import type {
   Keybinds,
   NightPDFSettings,
   OpenedFile,
+  FilterPreferences,
+  FilterPreset,
 } from "../helpers/settings";
-import { focusTab } from "../helpers/private";
+import {
+  focusTab,
+  savePageNumber,
+  setActiveFilterPreset,
+  updateCustomPreview,
+  setupSliders,
+} from "../helpers/private";
 
 declare global {
   interface Window {
@@ -39,12 +47,26 @@ declare global {
       ResolvePath(arg0: string): Promise<string>;
       SetBind(key: string, value: Keybinds): Promise<null>;
       SetOpenedFiles(openedFiles: (OpenedFile | string)[]): Promise<null>;
+      GetOpenedFiles(): Promise<(OpenedFile | string)[]>;
+      showTabMenu(tabId: number, filename: string): void;
+      moveTabToWindow(
+        file: OpenedFile,
+        targetWindowId: number | null,
+      ): Promise<boolean>;
+      tabTransferReady(transferId: string): void;
+      pdfWindowReady(): void;
       ReceivePageNumber(filename: string, pageNumber: number): Promise<null>;
+      RecordClosedTab(file: OpenedFile): Promise<null>;
+      RemoveRecentlyClosedTab(filename: string): Promise<null>;
+      restoreRecentlyClosedTab(id: string): null;
+      restoreRecentlyClosedWindow(id: string): null;
       GetSettings(): Promise<NightPDFSettings>;
+      SetFilterPreferences(filterPreferences: FilterPreferences): Promise<null>;
       SetSetting(group: string, key: string, value: unknown): Promise<null>;
       removeAllListeners(arg0: string): null;
-      openNewPDF(arg0: null | string): null;
+      openNewPDF(openInNewWindow: boolean | null): null;
       newWindow(arg0: string | string[]): null;
+      closeReady(): null;
       newTab(arg0: string | string[]): null;
       togglePrinting(arg0: boolean): null;
       resizeWindow(arg0: null | string): null;
@@ -72,6 +94,8 @@ declare global {
 
 async function nightPDF() {
   console.log("loading");
+  let filterPreferences = (await window.api.GetSettings()).filterPreferences;
+  updateCustomPreview(filterPreferences.custom);
   const appContainerElement: HTMLElement = document.getElementById(
     "appContainer",
   ) as HTMLElement;
@@ -102,6 +126,15 @@ async function nightPDF() {
   const splashElement: HTMLElement = document.getElementById(
     "splash-container",
   ) as HTMLElement;
+  const recentHistoryElement: HTMLElement = document.getElementById(
+    "recent-history",
+  ) as HTMLElement;
+  const recentTabsElement: HTMLElement = document.getElementById(
+    "recent-tabs",
+  ) as HTMLElement;
+  const recentWindowsElement: HTMLElement = document.getElementById(
+    "recent-windows",
+  ) as HTMLElement;
   const crispyButton: HTMLElement = document.getElementById(
     "crispy-button",
   ) as HTMLElement;
@@ -114,10 +147,105 @@ async function nightPDF() {
   const customButton: HTMLElement = document.getElementById(
     "custom-button",
   ) as HTMLElement;
+  const customizeButton: HTMLButtonElement = document.getElementById(
+    "customize-button",
+  ) as HTMLButtonElement;
   const tabGroup: TabGroup = document.querySelector("tab-group") as TabGroup;
   const tabCssKey: Map<Tab, string> = new Map();
   const tabFilePath: Map<Tab, string> = new Map();
   const closedFileHistory: string[] = [];
+
+  const presetButtons: Record<FilterPreset, HTMLElement> = {
+    crispy: crispyButton,
+    sepia: sepiaButton,
+    gentle: gentleButton,
+    custom: customButton,
+  };
+  const setActivePresetButton = (preset: FilterPreset) => {
+    for (const [name, button] of Object.entries(presetButtons)) {
+      button.className = name === preset ? "button active" : "button";
+    }
+  };
+  const selectPreset = async (preset: FilterPreset) => {
+    const settings = await window.api.GetSettings();
+    updateCustomPreview(settings.filterPreferences.custom);
+    setActiveFilterPreset(preset);
+    handlePresetChange(
+      preset,
+      brightnessSliderElement,
+      grayscaleSliderElement,
+      invertSliderElement,
+      sepiaSliderElement,
+      extraBrightnessSliderElement,
+      hueSliderElement,
+      settings.filterPreferences.custom,
+    );
+    filterPreferences = {
+      ...settings.filterPreferences,
+      activePreset: preset,
+    };
+    setActivePresetButton(preset);
+    await window.api.SetFilterPreferences(filterPreferences);
+  };
+  setActivePresetButton(filterPreferences.activePreset);
+  setupSliders(
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    tabGroup,
+    tabCssKey,
+    filterPreferences,
+  );
+
+  const getDisplayName = (filename: string) =>
+    filename.split(/[\\/]/).pop() || filename;
+  recentHistoryElement.addEventListener("click", (event: MouseEvent) => {
+    event.stopPropagation();
+  });
+  const renderRecentHistory = async () => {
+    const settings = await window.api.GetSettings();
+    recentTabsElement.replaceChildren();
+    recentWindowsElement.replaceChildren();
+    for (const file of settings.recentlyClosedTabs.slice(0, 3)) {
+      const button = document.createElement("button");
+      button.className = "recent-entry";
+      button.textContent = `${getDisplayName(file.filename)} (page ${file.pageNumber})`;
+      button.title = button.textContent;
+      button.addEventListener("click", () => {
+        window.api.restoreRecentlyClosedTab(file.id);
+      });
+      recentTabsElement.appendChild(button);
+    }
+    const recentWindows = settings.recentlyClosedWindows
+      .filter((closedWindow) => closedWindow.files.length > 0)
+      .slice(0, 3);
+    for (const closedWindow of recentWindows) {
+      const firstFile = closedWindow.files[0];
+      if (!firstFile) {
+        continue;
+      }
+      const extraCount = closedWindow.files.length - 1;
+      const button = document.createElement("button");
+      button.className = "recent-entry";
+      button.textContent = `${getDisplayName(firstFile.filename)}${extraCount > 0 ? ` (+${extraCount} more)` : ""}`;
+      button.title = button.textContent;
+      button.addEventListener("click", () => {
+        window.api.restoreRecentlyClosedWindow(closedWindow.id);
+      });
+      recentWindowsElement.appendChild(button);
+    }
+    recentHistoryElement.hidden =
+      settings.recentlyClosedTabs.length === 0 &&
+      settings.recentlyClosedWindows.length === 0;
+  };
+  void renderRecentHistory();
+  window.api.removeAllListeners("recent-history-updated");
+  window.api.on("recent-history-updated", () => {
+    void renderRecentHistory();
+  });
 
   appContainerElement.style.display = "none";
   tabGroup?.on("ready", (tabGroup: TabGroup) => {
@@ -126,7 +254,7 @@ async function nightPDF() {
       "click",
       (e: Event) => {
         e.stopImmediatePropagation();
-        window.api.openNewPDF(null);
+        window.api.openNewPDF(false);
       },
       true,
     );
@@ -141,20 +269,6 @@ async function nightPDF() {
       },
       true,
     );
-    // Listen for the tab-removed event
-    tabGroup?.on("tab-removed", async (tab, tabGroup) => {
-      console.log(`Tab with title "${tab.title}" was closed.`);
-      const closed = tabFilePath.get(tab);
-      const settings = await window.api.GetSettings();
-      const files = [...settings.openedFiles];
-      const openedFiles = files.filter((f: string | OpenedFile) => {
-        return (
-          (typeof f === "string" && f !== closed) ||
-          (typeof f === "object" && f?.filename !== closed)
-        );
-      });
-      await window.api.SetOpenedFiles(openedFiles);
-    });
   });
 
   //setup electron listeners
@@ -165,6 +279,7 @@ async function nightPDF() {
       _e: Event,
       msg: string | [string | string[], number | number[]] | [string],
       debug = false,
+      transferId?: string,
     ) => {
       let page: number | number[] | null = null;
       let files: string | string[];
@@ -207,8 +322,75 @@ async function nightPDF() {
         page,
         debug,
       );
+      if (transferId) {
+        window.api.tabTransferReady(transferId);
+      }
     },
   );
+
+  window.api.on(
+    "move-tab-request",
+    async (_event: Event, tabId: number, targetWindowId: number | null) => {
+      const tab = tabGroup.getTabs().find((entry) => entry.id === tabId);
+      const filename = tab && tabFilePath.get(tab);
+      if (!tab || !filename) {
+        return;
+      }
+      const pageNumber = await savePageNumber(
+        tab.webview as webviewTag,
+        filename,
+      );
+      const files = await window.api.GetOpenedFiles();
+      const savedFile = files.find((file) =>
+        typeof file === "string"
+          ? file === filename
+          : file.filename === filename,
+      );
+      const moved = await window.api.moveTabToWindow(
+        {
+          filename,
+          pageNumber:
+            pageNumber ??
+            (typeof savedFile === "object" ? savedFile.pageNumber : 0),
+        },
+        targetWindowId,
+      );
+      if (moved && tabGroup.getTabs().includes(tab)) {
+        tabFilePath.delete(tab);
+        tab.close(false);
+      }
+    },
+  );
+
+  window.api.removeAllListeners("prepare-to-close");
+  window.api.on("prepare-to-close", async () => {
+    try {
+      const tabs = tabGroup?.getTabs() ?? [];
+      await Promise.all(
+        tabs.map((tab) => {
+          const filename = tabFilePath.get(tab);
+          return filename
+            ? savePageNumber(tab.webview as webviewTag, filename)
+            : Promise.resolve();
+        }),
+      );
+      const openPaths = new Set(
+        tabs
+          .map((tab) => tabFilePath.get(tab))
+          .filter((filename): filename is string => Boolean(filename)),
+      );
+      const openedFiles = await window.api.GetOpenedFiles();
+      await window.api.SetOpenedFiles(
+        openedFiles.filter((file) =>
+          openPaths.has(typeof file === "string" ? file : file.filename),
+        ),
+      );
+    } catch (error) {
+      console.error("Error preparing PDF windows to close:", error);
+    } finally {
+      window.api.closeReady();
+    }
+  });
 
   window.api.removeAllListeners("file-print");
   window.api.on("file-print", (_e: Event, _msg: string) => {
@@ -265,6 +447,7 @@ async function nightPDF() {
       if (closedFileHistory.length > 0) {
         const lastClosedFile = closedFileHistory.pop();
         if (lastClosedFile) {
+          await window.api.RemoveRecentlyClosedTab(lastClosedFile);
           const settings = await window.api.GetSettings();
           await openFile(
             lastClosedFile,
@@ -287,19 +470,6 @@ async function nightPDF() {
             0,
             debug,
           );
-          let openedFiles = (await window.api.GetSettings()).openedFiles;
-          openedFiles = openedFiles.filter(
-            (f) =>
-              !(typeof f === "string"
-                ? f === lastClosedFile
-                : (f as OpenedFile).filename === lastClosedFile),
-          );
-          const openedFile: OpenedFile = {
-            filename: lastClosedFile,
-            pageNumber: 0,
-          };
-          openedFiles.push(openedFile);
-          window.api.SetOpenedFiles(openedFiles);
         }
       }
     },
@@ -310,29 +480,26 @@ async function nightPDF() {
   window.api.removeAllListeners("switch-tab");
   window.api.on("switch-tab", (_e: Event, msg: string | number) => {
     const tab = tabGroup?.getActiveTab();
-    // There is a bug in electron-tabs where
-    // selecting the previous tab with "getPreviousTab" will never work if the previous
-    // tab position === 0, see:
-    // https://github.com/brrd/electron-tabs/blob/master/src/index.ts#L231
-
-    // tabgroup methods return null if there is no tab
     let target: Tab | null | undefined = null;
     if (tab) {
       if (typeof msg === "string") {
+        const tabCount = tabGroup?.getTabs().length ?? 0;
+        const currentPosition = tab.getPosition();
         switch (msg) {
           case "next":
-            console.log("switching to next tab");
-            target = tabGroup?.getNextTab();
-            break;
-          case "prev": {
-            console.log("switching to previous tab");
-            // target = _tabGroup?.getPreviousTab();
-            const targetPos = tab.getPosition() - 1;
-            if (targetPos >= 0) {
-              target = tabGroup?.getTabByPosition(targetPos);
+            if (tabCount > 1) {
+              target = tabGroup?.getTabByPosition(
+                (currentPosition + 1) % tabCount,
+              );
             }
             break;
-          }
+          case "prev":
+            if (tabCount > 1) {
+              target = tabGroup?.getTabByPosition(
+                (currentPosition - 1 + tabCount) % tabCount,
+              );
+            }
+            break;
         }
       } else {
         if (msg >= 1 && msg <= 8) {
@@ -389,89 +556,47 @@ async function nightPDF() {
   });
 
   // setup dom listeners
-  crispyButton.addEventListener("click", (e: Event) => {
-    if (crispyButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      crispyButton.className = "button active";
-      sepiaButton.className = "button";
-      gentleButton.className = "button";
-      customButton.className = "button";
-      handlePresetChange(
-        "crispy",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
-    }
-
+  crispyButton.addEventListener("click", async (e: Event) => {
+    await selectPreset("crispy");
     e.stopPropagation();
   });
-  sepiaButton.addEventListener("click", (e: Event) => {
-    if (sepiaButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      crispyButton.className = "button";
-      sepiaButton.className = "button active";
-      gentleButton.className = "button";
-      customButton.className = "button";
-      handlePresetChange(
-        "sepia",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
-    }
+  sepiaButton.addEventListener("click", async (e: Event) => {
+    await selectPreset("sepia");
     e.stopPropagation();
   });
-  gentleButton.addEventListener("click", (e: Event) => {
-    // only display menu if active
-    if (gentleButton.className.includes("active")) {
-      toggleDarkConfigurator(darkConfiguratorElement);
-    } else {
-      crispyButton.className = "button";
-      sepiaButton.className = "button";
-      gentleButton.className = "button active";
-      customButton.className = "button";
-      handlePresetChange(
-        "gentle",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
-    }
+  gentleButton.addEventListener("click", async (e: Event) => {
+    await selectPreset("gentle");
     e.stopPropagation();
   });
 
-  customButton.addEventListener("click", (e: Event) => {
-    // always display menu
-    if (!customButton.className.includes("active")) {
-      crispyButton.className = "button";
-      sepiaButton.className = "button";
-      gentleButton.className = "button";
-      customButton.className = "button active";
-      handlePresetChange(
-        "original",
-        brightnessSliderElement,
-        grayscaleSliderElement,
-        invertSliderElement,
-        sepiaSliderElement,
-        extraBrightnessSliderElement,
-        hueSliderElement,
-      );
-    }
-    toggleDarkConfigurator(darkConfiguratorElement);
+  customButton.addEventListener("click", async (e: Event) => {
+    await selectPreset("custom");
     e.stopPropagation();
   });
+
+  customizeButton.addEventListener("click", async (e: Event) => {
+    e.stopPropagation();
+    if (darkConfiguratorElement.style.visibility === "visible") {
+      hideDarkConfigurator(darkConfiguratorElement);
+      return;
+    }
+    await selectPreset("custom");
+    showDarkConfigurator(darkConfiguratorElement);
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (event: PointerEvent) => {
+      const path = event.composedPath();
+      if (
+        !path.includes(darkConfiguratorElement) &&
+        !path.includes(customizeButton)
+      ) {
+        hideDarkConfigurator(darkConfiguratorElement);
+      }
+    },
+    true,
+  );
 
   headerElement.addEventListener("click", (_e: Event) => {
     hideDarkConfigurator(darkConfiguratorElement);
@@ -490,44 +615,53 @@ async function nightPDF() {
     }
   });
 
-  splashElement.ondrop = async (e: DragEvent, debug = false) => {
-    console.log("files dropped");
-    e.preventDefault();
-    e.stopPropagation();
+  document.addEventListener(
+    "drop",
+    async (e: DragEvent) => {
+      console.log("files dropped");
+      e.preventDefault();
+      e.stopPropagation();
 
-    const files = e.dataTransfer?.files;
+      const files = e.dataTransfer?.files;
 
-    if (!files || files.length === 0) {
-      return;
-    }
-    const settings = await window.api.GetSettings();
-    await openFile(
-      files,
-      closedFileHistory,
+      if (!files || files.length === 0) {
+        return;
+      }
+      const settings = await window.api.GetSettings();
+      await openFile(
+        files,
+        closedFileHistory,
 
-      tabGroup,
-      tabFilePath,
-      tabCssKey,
+        tabGroup,
+        tabFilePath,
+        tabCssKey,
 
-      appContainerElement,
-      splashElement,
-      headerElement,
-      brightnessSliderElement,
-      grayscaleSliderElement,
-      invertSliderElement,
-      sepiaSliderElement,
-      extraBrightnessSliderElement,
-      hueSliderElement,
-      settings.general.DisplayThumbs,
-      null,
-      debug,
-    );
-  };
-  splashElement.ondragover = (e: Event) => {
-    console.log("file dragged");
-    e.preventDefault();
-    e.stopPropagation();
-  };
+        appContainerElement,
+        splashElement,
+        headerElement,
+        brightnessSliderElement,
+        grayscaleSliderElement,
+        invertSliderElement,
+        sepiaSliderElement,
+        extraBrightnessSliderElement,
+        hueSliderElement,
+        settings.general.DisplayThumbs,
+        null,
+        false,
+      );
+    },
+    true,
+  );
+  document.addEventListener(
+    "dragover",
+    (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+      }
+    },
+    true,
+  );
+  window.api.pdfWindowReady();
 }
 
 await nightPDF();

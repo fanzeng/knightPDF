@@ -1,9 +1,18 @@
 import type { TabGroup, Tab } from "electron-tabs";
+import type { FilterPreferences, FilterPreset } from "./settings";
+import { handlePresetChange } from "./sliders";
 import { create } from "nouislider";
+
+function updateCustomPreview(custom: FilterPreferences["custom"]) {
+  const preview = document.getElementById("custom-preview");
+  if (preview) {
+    preview.style.filter = `brightness(${(100 - custom.brightness) / 100}) grayscale(${custom.grayscale / 100}) invert(${custom.invert / 100}) sepia(${custom.sepia / 100}) hue-rotate(${custom.hue}deg) brightness(${(custom.extraBrightness + 100) / 100})`;
+  }
+}
 
 // Code to inject into the webview, to prevent jsPDF from intercepting keybinds
 const keyInterceptor: string = `
-var _ctrlCmdKeybinds = ["o", "p", "t", "w", "Tab", "F4", "PageUp", "PageDown", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+var _ctrlCmdKeybinds = ["o", "p", "t", "w", "Tab", "F4", "PageUp", "PageDown", "ArrowLeft", "ArrowRight", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 var _ctrlCmdPlusShiftKeybinds = ["t", "w", "Tab", "PageUp", "PageDown", "Home", "End"];
 function handleKeys(e) {
 	// ctrl / cmd
@@ -29,6 +38,13 @@ const addPagechangeListener: string = `
   });
 `;
 
+let activeFilterPreset: FilterPreset = "crispy";
+let currentFilterRule = "div#viewer .page {border-image: none;}";
+
+function setActiveFilterPreset(preset: FilterPreset) {
+  activeFilterPreset = preset;
+}
+
 function _try(func: CallableFunction, fallbackValue: number) {
   try {
     const value = func();
@@ -46,7 +62,12 @@ const focusTab = (tab: Tab) => {
   }
 };
 
-function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
+function setupTab(
+  tab: Tab,
+  tabCssKey: Map<Tab, string>,
+  filename: string,
+  debug = false,
+) {
   tab.once("webview-dom-ready", () => {
     const content = tab.webview;
     if (debug) {
@@ -57,14 +78,9 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
     content?.executeJavaScript(keyInterceptor);
     // @ts-ignore
     content?.executeJavaScript(addPagechangeListener);
-    let style = "div#viewer .page {";
-    style +=
-      "filter: brightness(0.92) grayscale(0.0) invert(0.8) hue-rotate(180deg) brightness(0.7);";
-    style += "border-image: none;";
-    style += "}";
     // @ts-ignore
     content
-      ?.insertCSS(style)
+      ?.insertCSS(currentFilterRule)
       .then((key: string) => {
         console.info("inserted style", key);
         tabCssKey.set(tab, key);
@@ -103,10 +119,10 @@ function setupTab(tab: Tab, tabCssKey: Map<Tab, string>, debug = false) {
       .then((key: string) => {
         console.info("inserted style", key);
         content.addEventListener("blur", (e: FocusEvent) => {
-          updatePageNumber(e);
+          updatePageNumber(e, filename);
         });
         content.addEventListener("mouseleave", (e: Event) => {
-          updatePageNumber(e);
+          updatePageNumber(e, filename);
         });
         focusTab(tab);
       });
@@ -129,6 +145,7 @@ function updateDarkSettings(
   cssRule += cssFilter;
   cssRule += "border-image: none;";
   cssRule += "}";
+  currentFilterRule = cssRule;
   tabGroup?.eachTab((tab) => {
     const content = tab.webview;
     if (content) {
@@ -187,7 +204,9 @@ function setupSliders(
   hueSliderElement: HTMLElement,
   tabGroup: TabGroup,
   tabCssKey: Map<Tab, string>,
+  filterPreferences: FilterPreferences,
 ) {
+  activeFilterPreset = filterPreferences.activePreset;
   create(brightnessSliderElement, {
     start: 7,
     step: 1,
@@ -334,10 +353,14 @@ function setupSliders(
     hueSliderElement,
     extraBrightnessSliderElement,
   ];
-  sliders.map((slider) => {
-    const namespace = brightnessSliderElement.id;
-    const eventName = `update.${namespace}`;
-    slider.noUiSlider.on(eventName, () => {
+  let cssUpdateScheduled = false;
+  const scheduleCSSUpdate = () => {
+    if (cssUpdateScheduled) {
+      return;
+    }
+    cssUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      cssUpdateScheduled = false;
       updateCSS(
         brightnessSliderElement,
         grayscaleSliderElement,
@@ -349,7 +372,55 @@ function setupSliders(
         tabCssKey,
       );
     });
-  });
+  };
+  for (const slider of sliders) {
+    const namespace = brightnessSliderElement.id;
+    const eventName = `update.${namespace}`;
+    slider.noUiSlider.on(eventName, scheduleCSSUpdate);
+    slider.noUiSlider.on("change.persistCustom", async () => {
+      if (activeFilterPreset !== "custom") {
+        return;
+      }
+      const currentSettings = await window.api.GetSettings();
+      await window.api.SetFilterPreferences({
+        ...currentSettings.filterPreferences,
+        custom: {
+          brightness: Number(brightnessSliderElement.noUiSlider.get()),
+          grayscale: Number(grayscaleSliderElement.noUiSlider.get()),
+          invert: Number(invertSliderElement.noUiSlider.get()),
+          sepia: Number(sepiaSliderElement.noUiSlider.get()),
+          hue: Number(hueSliderElement.noUiSlider.get()),
+          extraBrightness: Number(
+            extraBrightnessSliderElement.noUiSlider.get(),
+          ),
+        },
+      });
+      const savedSettings = await window.api.GetSettings();
+      updateCustomPreview(savedSettings.filterPreferences.custom);
+    });
+  }
+
+  handlePresetChange(
+    filterPreferences.activePreset,
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    filterPreferences.custom,
+  );
+  updateCustomPreview(filterPreferences.custom);
+  updateCSS(
+    brightnessSliderElement,
+    grayscaleSliderElement,
+    invertSliderElement,
+    sepiaSliderElement,
+    extraBrightnessSliderElement,
+    hueSliderElement,
+    tabGroup,
+    tabCssKey,
+  );
 }
 
 // This is not used at the moment.
@@ -368,54 +439,39 @@ const getPageNumberFromHistory = (e: FocusEvent) => {
   }
 };
 
-const updatePageNumber = (e: Event) => {
-  return getPageNumber(e).then((pageNumber) => {
-    if (pageNumber && pageNumber > 0) {
-      getFilename(e).then((filename) => {
-        if (filename && (filename as string).length > 0)
-          window.api.ReceivePageNumber(filename, pageNumber);
-      });
+const updatePageNumber = (e: Event, filename: string) => {
+  return savePageNumber(e.target as webviewTag, filename);
+};
+
+const savePageNumber = async (
+  webview: webviewTag,
+  filename: string,
+): Promise<number | null> => {
+  if (!webview) {
+    return null;
+  }
+  try {
+    const page = await webview.executeJavaScript("window.pageNumber");
+    const pageNumber = Number.parseInt(String(page), 10);
+    if (!Number.isFinite(pageNumber) || pageNumber <= 0) {
+      return null;
     }
-  });
-};
-
-const getPageNumber = (e: Event): Promise<number> => {
-  const webview = e.target as webviewTag;
-  if (!webview) {
-    return Promise.reject(0);
+    if (filename.length > 0) {
+      await window.api.ReceivePageNumber(filename, pageNumber);
+      return pageNumber;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error saving PDF page number:", error);
+    return null;
   }
-  return webview
-    .executeJavaScript("window.pageNumber")
-    .then((p) => {
-      try {
-        const page = p as string;
-        const pageNumber = Number.parseInt(page);
-        return pageNumber;
-      } catch {
-        console.error("pageNumber is not an integer:", p);
-        return 0;
-      }
-    })
-    .catch((error) => {
-      console.error("Error executing JavaScript in webview:", error);
-      return 0;
-    });
 };
 
-const getFilename = (e: Event): Promise<string> => {
-  const webview = e.target as webviewTag;
-  if (!webview) {
-    return Promise.resolve("");
-  }
-  return webview
-    .executeJavaScript("window.PDFViewerApplication.baseUrl")
-    .then((filename) => {
-      return filename as string;
-    })
-    .catch((error) => {
-      console.error("Error executing JavaScript in webview:", error);
-      return "";
-    });
+export {
+  setupSliders,
+  setupTab,
+  focusTab,
+  savePageNumber,
+  setActiveFilterPreset,
+  updateCustomPreview,
 };
-
-export { setupSliders, setupTab, focusTab };

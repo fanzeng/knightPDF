@@ -6,11 +6,40 @@ type OpenedFile = {
   pageNumber: number;
 };
 
+type OpenedWindow = {
+  id: string;
+  files: OpenedFile[];
+};
+
+type ClosedTab = OpenedFile & {
+  id: string;
+};
+
+type FilterPreset = "crispy" | "sepia" | "gentle" | "custom";
+
+type FilterValues = {
+  brightness: number;
+  grayscale: number;
+  invert: number;
+  sepia: number;
+  hue: number;
+  extraBrightness: number;
+};
+
+type FilterPreferences = {
+  activePreset: FilterPreset;
+  custom: FilterValues;
+};
+
 type NightPDFSettings = JSONSchema & {
   version: string;
   general: Record<string, boolean>;
   keybinds: Record<string, Keybinds>;
   openedFiles: (OpenedFile | string)[];
+  openedGroups: OpenedWindow[];
+  recentlyClosedTabs: ClosedTab[];
+  recentlyClosedWindows: OpenedWindow[];
+  filterPreferences: FilterPreferences;
 };
 
 // kebind config
@@ -276,6 +305,9 @@ const nightpdf_schema: Schema<NightPDFSettings> = {
       DisplayThumbs: {
         type: "boolean",
       },
+      MultiWindow: {
+        type: "boolean",
+      },
     },
     type: "object",
   },
@@ -296,6 +328,46 @@ const nightpdf_schema: Schema<NightPDFSettings> = {
   openedFiles: {
     type: "array",
   },
+  openedGroups: {
+    type: "array",
+  },
+  recentlyClosedTabs: {
+    type: "array",
+  },
+  recentlyClosedWindows: {
+    type: "array",
+  },
+  filterPreferences: {
+    type: "object",
+    properties: {
+      activePreset: {
+        type: "string",
+        enum: ["crispy", "sepia", "gentle", "custom"],
+      },
+      custom: {
+        type: "object",
+        properties: {
+          brightness: { type: "number" },
+          grayscale: { type: "number" },
+          invert: { type: "number" },
+          sepia: { type: "number" },
+          hue: { type: "number" },
+          extraBrightness: { type: "number" },
+        },
+        required: [
+          "brightness",
+          "grayscale",
+          "invert",
+          "sepia",
+          "hue",
+          "extraBrightness",
+        ],
+        additionalProperties: false,
+      },
+    },
+    required: ["activePreset", "custom"],
+    additionalProperties: false,
+  },
 };
 
 function nightpdf_default_settings(version: string): NightPDFSettings {
@@ -304,6 +376,7 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
     general: {
       MaximizeOnOpen: true,
       DisplayThumbs: true,
+      MultiWindow: false,
     },
     keybinds: {
       OpenWindow: {
@@ -368,6 +441,20 @@ function nightpdf_default_settings(version: string): NightPDFSettings {
       },
     },
     openedFiles: [],
+    openedGroups: [],
+    recentlyClosedTabs: [],
+    recentlyClosedWindows: [],
+    filterPreferences: {
+      activePreset: "crispy",
+      custom: {
+        brightness: 0,
+        grayscale: 0,
+        invert: 0,
+        sepia: 0,
+        hue: 0,
+        extraBrightness: 0,
+      },
+    },
   };
 }
 
@@ -435,4 +522,9 @@ export {
   KeybindHelper,
   KeybindsHelper,
   type OpenedFile,
+  type OpenedWindow,
+  type ClosedTab,
+  type FilterPreset,
+  type FilterValues,
+  type FilterPreferences,
 };

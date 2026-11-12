@@ -54,30 +54,34 @@ async function nightPDFSettings() {
   const keybindJoinDisplay = '<span class="keybind-join"> + </span>';
   const invalidKeybindDisplay = '<span class="keybind-invalid">Invalid</span>';
 
-  for (const setting in settings) {
-    if (Object.prototype.hasOwnProperty.call(settings, setting)) {
-      // add to menu
-      const menuItem = document.createElement("div");
-      const panelId = `settings-${setting}`;
-      menuItem.classList.add("menu-item");
-      menuItem.innerText = setting;
-      menuItem.addEventListener("click", () => {
-        for (const panel of document.getElementsByClassName("menu-item")) {
-          panel.classList.remove("active");
-        }
-        menuItem.classList.add("active");
-        // hide all panels
-        for (const panel of document.getElementsByClassName("settings-panel")) {
-          panel.classList.add("hidden");
-        }
-        // show current panel
-        document.getElementById(panelId)?.classList.remove("hidden");
-      });
-      menu?.appendChild(menuItem);
-      const panel = document.createElement("div");
-      panel.classList.add("settings-panel", "hidden");
-      panel.id = panelId;
-      contentWrapper?.appendChild(panel);
+  const settingPanels = [
+    { key: "version", label: "Version" },
+    { key: "general", label: "General" },
+    { key: "keybinds", label: "Keybinds" },
+  ];
+  for (const setting of settingPanels) {
+    const menuItem = document.createElement("div");
+    const panelId = `settings-${setting.key}`;
+    menuItem.classList.add("menu-item");
+    menuItem.innerText = setting.label;
+    menuItem.addEventListener("click", () => {
+      for (const item of document.getElementsByClassName("menu-item")) {
+        item.classList.remove("active");
+      }
+      menuItem.classList.add("active");
+      for (const panel of document.getElementsByClassName("settings-panel")) {
+        panel.classList.add("hidden");
+      }
+      document.getElementById(panelId)?.classList.remove("hidden");
+    });
+    menu?.appendChild(menuItem);
+    const panel = document.createElement("div");
+    panel.classList.add("settings-panel", "hidden");
+    panel.id = panelId;
+    contentWrapper?.appendChild(panel);
+    if (setting.key === "general") {
+      menuItem.classList.add("active");
+      panel.classList.remove("hidden");
     }
   }
 
@@ -102,11 +106,12 @@ async function nightPDFSettings() {
       const label = document.createElement("label");
       label.htmlFor = keys[key];
       label.classList.add("setting-name");
-      if (keys[key] === "MaximizeOnOpen") {
-        label.innerText = "Maximize On Open";
-      } else {
-        label.innerText = "Display PDF page thumbnails";
-      }
+      const settingLabels: Record<string, string> = {
+        MaximizeOnOpen: "Maximize On Open",
+        DisplayThumbs: "Display PDF page thumbnails",
+        MultiWindow: "Open new PDFs in new windows",
+      };
+      label.innerText = settingLabels[keys[key]] ?? keys[key];
 
       const checkbox = document.createElement("input") as HTMLInputElement;
       checkbox.type = "checkbox";

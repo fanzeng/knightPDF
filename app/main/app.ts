@@ -21,7 +21,7 @@ import {
   app,
   BrowserWindow,
   Menu,
-  MenuItem,
+  type MenuItem,
   type MenuItemConstructorOptions,
   dialog,
   ipcMain,
@@ -31,11 +31,12 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
-import type { OpenDialogReturnValue } from "electron";
+import type { OpenDialogOptions, OpenDialogReturnValue } from "electron";
 import { parse, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { version } from "../../package.json";
 import { autoUpdater } from "electron-updater";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import localShortcut from "electron-localshortcut";
 import log from "electron-log";
 import yargs from "yargs";
@@ -47,6 +48,8 @@ import {
   nightpdf_default_settings,
   KeybindsHelper,
   type OpenedFile,
+  type OpenedWindow,
+  type FilterPreferences,
 } from "../helpers/settings";
 import { createMenu } from "./menutemplate";
 import process from "node:process";
@@ -78,6 +81,15 @@ const store = makeStore({
 });
 
 let wins: BrowserWindow[] = [];
+const readyPDFWindows = new Set<number>();
+let updaterCheckStarted = false;
+const windowSessionIds = new Map<number, string>();
+const closeApprovals = new Set<number>();
+const pendingCloseSaves = new Map<number, Promise<void>>();
+const closeWaiters = new Map<number, () => void>();
+const closeTimeouts = new Map<number, NodeJS.Timeout>();
+const CLOSE_SAVE_TIMEOUT_MS = 1200;
+const MAX_RECENTLY_CLOSED = 10;
 let menuIsConfigured = false;
 
 const DEBUG = process.env.DEBUG;
@@ -98,6 +110,9 @@ if (store_version) {
       if (typeof general.DisplayThumbs !== "boolean") {
         general.DisplayThumbs = true;
       }
+      if (typeof general.MultiWindow !== "boolean") {
+        general.MultiWindow = false;
+      }
       store.set("general", general);
     }
     store.set("version", version);
@@ -105,6 +120,348 @@ if (store_version) {
 } else {
   store.set("version", version);
 }
+
+const generalSettings = store.get("general");
+if (typeof generalSettings.MultiWindow !== "boolean") {
+  generalSettings.MultiWindow = false;
+  store.set("general", generalSettings);
+}
+
+if (store.get("openedGroups").length === 0) {
+  const legacyFiles = store.get("openedFiles");
+  if (legacyFiles.length > 0) {
+    store.set("openedGroups", [
+      { id: randomUUID(), files: normalizeOpenedFiles(legacyFiles) },
+    ]);
+    store.set("openedFiles", []);
+  }
+}
+
+function normalizeFilename(filename: string): string {
+  return resolve(filename.replace(/^file:\/\//, ""));
+}
+
+function normalizeOpenedFiles(files: (OpenedFile | string)[]): OpenedFile[] {
+  const normalized = new Map<string, OpenedFile>();
+  for (const file of files) {
+    const filename = normalizeFilename(
+      typeof file === "string" ? file : file.filename,
+    );
+    try {
+      if (statSync(filename, { throwIfNoEntry: false })?.isDirectory()) {
+        continue;
+      }
+    } catch (error) {
+      log.debug("Unable to inspect document path", error);
+    }
+    normalized.set(filename, {
+      filename,
+      pageNumber: typeof file === "string" ? 0 : file.pageNumber,
+    });
+  }
+  return [...normalized.values()];
+}
+
+for (const key of ["openedGroups", "recentlyClosedWindows"] as const) {
+  const groups = store.get(key);
+  const documentGroups = groups
+    .map((group) => ({ ...group, files: normalizeOpenedFiles(group.files) }))
+    .filter((group) => group.files.length > 0);
+  if (JSON.stringify(groups) !== JSON.stringify(documentGroups)) {
+    store.set(key, documentGroups);
+  }
+}
+const closedTabs = store.get("recentlyClosedTabs");
+const documentTabs = closedTabs.filter(
+  (file) => normalizeOpenedFiles([file]).length > 0,
+);
+if (documentTabs.length !== closedTabs.length) {
+  store.set("recentlyClosedTabs", documentTabs);
+}
+
+function getOpenedGroupFiles(sessionId: string): OpenedFile[] {
+  return (
+    store.get("openedGroups").find((group) => group.id === sessionId)?.files ??
+    []
+  );
+}
+
+function setOpenedGroupFiles(
+  sessionId: string,
+  files: (OpenedFile | string)[],
+) {
+  const groups: OpenedWindow[] = store.get("openedGroups");
+  const normalized = normalizeOpenedFiles(files);
+  const groupIndex = groups.findIndex((group) => group.id === sessionId);
+  if (normalized.length === 0) {
+    store.set(
+      "openedGroups",
+      groups.filter((group) => group.id !== sessionId),
+    );
+  } else if (groupIndex === -1) {
+    store.set("openedGroups", [
+      ...groups,
+      { id: sessionId, files: normalized },
+    ]);
+  } else {
+    groups[groupIndex].files = normalized;
+    store.set("openedGroups", groups);
+  }
+}
+
+function appendOpenedFiles(win: BrowserWindow, filenames: string[]) {
+  const sessionId = windowSessionIds.get(win.webContents.id);
+  if (!sessionId) {
+    return;
+  }
+  const currentFiles = getOpenedGroupFiles(sessionId);
+  const existingFilenames = new Set(currentFiles.map((file) => file.filename));
+  setOpenedGroupFiles(sessionId, [
+    ...currentFiles,
+    ...filenames
+      .map((filename) => normalizeFilename(filename))
+      .filter((filename) => !existingFilenames.has(filename))
+      .map((filename) => ({ filename, pageNumber: 0 })),
+  ]);
+}
+
+function getActivePDFWindow(): BrowserWindow | undefined {
+  const focusedWin = BrowserWindow.getFocusedWindow();
+  if (focusedWin && wins.includes(focusedWin)) {
+    return focusedWin;
+  }
+  return wins.find((win) => !win.isDestroyed());
+}
+
+function rememberClosedTab(file: OpenedFile) {
+  store.set(
+    "recentlyClosedTabs",
+    [
+      {
+        ...file,
+        id: randomUUID(),
+        filename: normalizeFilename(file.filename),
+      },
+      ...store.get("recentlyClosedTabs"),
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  );
+  refreshRecentlyClosedMenus();
+}
+
+function rememberClosedWindow(files: OpenedFile[]) {
+  const documentFiles = normalizeOpenedFiles(files);
+  if (documentFiles.length === 0) {
+    return;
+  }
+  const recentWindows: OpenedWindow[] = store.get("recentlyClosedWindows");
+  store.set(
+    "recentlyClosedWindows",
+    [{ id: randomUUID(), files: documentFiles }, ...recentWindows].slice(
+      0,
+      MAX_RECENTLY_CLOSED,
+    ),
+  );
+  refreshRecentlyClosedMenus();
+}
+
+function findMenuItem(menu: Menu, id: string): MenuItem | undefined {
+  for (const item of menu.items) {
+    if (item.id === id) {
+      return item;
+    }
+    if (item.submenu) {
+      const nestedItem = findMenuItem(item.submenu, id);
+      if (nestedItem) {
+        return nestedItem;
+      }
+    }
+  }
+}
+
+let openPdfDialog: (openInNewWindow?: boolean) => void = () => {};
+let printingEnabled = false;
+let navigateMenuItems: MenuItemConstructorOptions[] | undefined;
+
+function buildApplicationMenu(): Menu {
+  const recentlyClosedTabs: MenuItemConstructorOptions[] = store
+    .get("recentlyClosedTabs")
+    .map((file) => ({
+      label: `${parse(file.filename).base} (page ${file.pageNumber})`,
+      click: () => reopenRecentlyClosedTab(file.id),
+    }));
+  const recentlyClosedWindows: MenuItemConstructorOptions[] = store
+    .get("recentlyClosedWindows")
+    .filter((closedWindow) => closedWindow.files.length > 0)
+    .map((closedWindow) => {
+      const firstFile = closedWindow.files[0];
+      const extraCount = closedWindow.files.length - 1;
+      return {
+        label: `${parse(firstFile.filename).base}${extraCount > 0 ? ` (+${extraCount} more)` : ""}`,
+        click: () => reopenRecentlyClosedWindow(closedWindow.id),
+      };
+    });
+  const menu = Menu.buildFromTemplate(
+    createMenu(recentlyClosedTabs, recentlyClosedWindows, navigateMenuItems),
+  );
+  const fileNewTab = findMenuItem(menu, "file-new-tab");
+  const fileOpen = findMenuItem(menu, "file-open");
+  const fileNewWindow = findMenuItem(menu, "file-new-window");
+  const print = findMenuItem(menu, "file-print");
+  const fileQuit = findMenuItem(menu, "file-quit");
+  const clearRecentTabs = findMenuItem(menu, "file-clear-recent-tabs");
+  const clearRecentWindows = findMenuItem(menu, "file-clear-recent-windows");
+
+  if (fileNewTab) {
+    fileNewTab.click = () => openPdfDialog(false);
+  }
+  if (fileOpen) {
+    fileOpen.click = () => openPdfDialog();
+  }
+  if (fileNewWindow) {
+    fileNewWindow.click = () => createWindow();
+  }
+  if (print) {
+    print.enabled = printingEnabled;
+    print.click = () => {
+      const focusedWin = BrowserWindow.getFocusedWindow();
+      focusedWin?.webContents.send("file-print");
+    };
+  }
+  if (fileQuit) {
+    fileQuit.click = () => app.quit();
+  }
+  if (clearRecentTabs) {
+    clearRecentTabs.click = () => {
+      store.set("recentlyClosedTabs", []);
+      refreshRecentlyClosedMenus();
+    };
+  }
+  if (clearRecentWindows) {
+    clearRecentWindows.click = () => {
+      store.set("recentlyClosedWindows", []);
+      refreshRecentlyClosedMenus();
+    };
+  }
+
+  return menu;
+}
+
+function refreshRecentlyClosedMenus() {
+  Menu.setApplicationMenu(buildApplicationMenu());
+  for (const win of wins) {
+    if (!win.isDestroyed()) {
+      win.webContents.send("recent-history-updated");
+    }
+  }
+}
+
+function reopenRecentlyClosedTab(id: string) {
+  const closedTabs = store.get("recentlyClosedTabs");
+  const index = closedTabs.findIndex((file) => file.id === id);
+  if (index < 0) {
+    return;
+  }
+  const [selectedTab] = closedTabs.splice(index, 1);
+  store.set("recentlyClosedTabs", closedTabs);
+  const targetWin = getActivePDFWindow();
+  if (targetWin) {
+    targetWin.webContents.send("file-open", [
+      selectedTab.filename,
+      selectedTab.pageNumber,
+    ]);
+  } else {
+    createWindow(selectedTab.filename, selectedTab.pageNumber);
+  }
+  refreshRecentlyClosedMenus();
+}
+
+function reopenRecentlyClosedWindow(id: string) {
+  const closedWindows = store.get("recentlyClosedWindows");
+  const index = closedWindows.findIndex(
+    (closedWindow) => closedWindow.id === id,
+  );
+  if (index < 0) {
+    return;
+  }
+  const [selectedWindow] = closedWindows.splice(index, 1);
+  store.set("recentlyClosedWindows", closedWindows);
+  createWindow(
+    selectedWindow.files.map((file) => file.filename),
+    selectedWindow.files.map((file) => file.pageNumber),
+  );
+  refreshRecentlyClosedMenus();
+}
+
+function prepareWindowClose(win: BrowserWindow): Promise<void> {
+  const webContentsId = win.webContents.id;
+  if (closeApprovals.has(webContentsId)) {
+    return Promise.resolve();
+  }
+  const existing = pendingCloseSaves.get(webContentsId);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = new Promise<void>((resolvePromise) => {
+    let completed = false;
+    const complete = () => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      const timeout = closeTimeouts.get(webContentsId);
+      if (timeout) {
+        clearTimeout(timeout);
+        closeTimeouts.delete(webContentsId);
+      }
+      closeWaiters.delete(webContentsId);
+      closeApprovals.add(webContentsId);
+      pendingCloseSaves.delete(webContentsId);
+      resolvePromise();
+    };
+
+    closeWaiters.set(webContentsId, complete);
+    if (win.webContents.isDestroyed()) {
+      complete();
+      return;
+    }
+    try {
+      win.webContents.send("prepare-to-close");
+    } catch {
+      complete();
+      return;
+    }
+    closeTimeouts.set(
+      webContentsId,
+      setTimeout(complete, CLOSE_SAVE_TIMEOUT_MS),
+    );
+  });
+  pendingCloseSaves.set(webContentsId, pending);
+  return pending;
+}
+
+ipcMain.on("window-close-ready", (event: IpcMainEvent) => {
+  closeWaiters.get(event.sender.id)?.();
+});
+
+let quitInProgress = false;
+let appQuitApproved = false;
+app.on("before-quit", (event) => {
+  if (appQuitApproved) {
+    return;
+  }
+  event.preventDefault();
+  if (quitInProgress) {
+    return;
+  }
+  quitInProgress = true;
+  Promise.all(
+    wins.filter((win) => !win.isDestroyed()).map(prepareWindowClose),
+  ).then(() => {
+    appQuitApproved = true;
+    app.quit();
+  });
+});
 
 function getpath(filePath: string) {
   return parse(filePath).base;
@@ -127,42 +484,10 @@ function setkeybind(id: string, command: Keybinds) {
   store.set("keybinds", storeKeybinds);
 }
 
-const blurFocusedWin = () => {
-  const focusedWin = BrowserWindow.getFocusedWindow();
-  if (focusedWin) {
-    focusedWin.webContents.send("blur-tab");
-    store.set("canQuit", false);
-  }
-};
-
-function handleWindowClose(win: BrowserWindow, timeout = 5000) {
-  blurFocusedWin();
-  setTimeout(() => {
-    store.set("canQuit", true); // Fallback to ensure quit isn't blocked forever
-    win.close();
-  }, timeout);
-}
-
-const onQuit = () => {
-  blurFocusedWin();
-  setInterval(() => {
-    if (store.get("canQuit")) {
-      if (process.platform === "darwin") {
-        setTimeout(() => {
-          app.exit(0);
-        }, 0);
-      } else {
-        setTimeout(() => {
-          app.quit();
-        }, 0);
-      }
-    }
-  }, 100);
-};
-
 function createWindow(
   filename: string | string[] | null = null,
   page: number | number[] | null = null,
+  sessionId: string = randomUUID(),
 ) {
   //force dark theme irespective of os theme
   //useful for linux since we don't have a standardised way of detecting dark theme
@@ -170,10 +495,10 @@ function createWindow(
   // Create the browser window.
   const win = new BrowserWindow({
     width: 550,
-    height: 420,
+    height: 600,
     minWidth: 565,
     icon: join(__dirname, "../assets/icon.png"),
-    minHeight: 200,
+    minHeight: 580,
     webPreferences: {
       sandbox: true,
       webviewTag: true,
@@ -183,7 +508,8 @@ function createWindow(
     titleBarStyle: "default",
     show: false,
   });
-  if (!(linux && FLATPAK)) {
+  if (!(linux && FLATPAK) && !updaterCheckStarted) {
+    updaterCheckStarted = true;
     try {
       autoUpdater.logger = log;
       autoUpdater.checkForUpdatesAndNotify();
@@ -194,11 +520,27 @@ function createWindow(
     }
   }
   wins.push(win);
+  windowSessionIds.set(win.webContents.id, sessionId);
+  if (filename) {
+    const filenames = Array.isArray(filename) ? filename : [filename];
+    const files = filenames.map((path, index) => ({
+      filename: normalizeFilename(path),
+      pageNumber: Array.isArray(page)
+        ? page[index] ?? 0
+        : typeof page === "number"
+          ? page
+          : 0,
+    }));
+    setOpenedGroupFiles(sessionId, files);
+  }
 
   // and load the index.html of the app.
 
   win.loadFile(join(__dirname, "../index.html"));
   const wc = win.webContents;
+  wc.on("will-attach-webview", (_event, preferences) => {
+    preferences.preload = resolve(join(__dirname, "../preload/pdf.js"));
+  });
   // if the window url changes from the inital one,
   // block the change and use xdg-open to open it
   // @ts-ignore - will-navigate is not in the type definition
@@ -211,18 +553,42 @@ function createWindow(
       }
     }
   });
-  store.set("canQuit", true);
-  win.once("close", (e) => {
-    e.preventDefault();
-    handleWindowClose(win, 10);
-    blurFocusedWin();
+  const webContentsId = win.webContents.id;
+  win.on("close", (event) => {
+    if (closeApprovals.has(webContentsId)) {
+      closeApprovals.delete(webContentsId);
+      return;
+    }
+    event.preventDefault();
+    void prepareWindowClose(win).then(() => {
+      if (!win.isDestroyed()) {
+        win.close();
+      }
+    });
   });
   win.once("closed", () => {
-    // Dereference the window object, usually you would store windows
-    // in an array if your app supports multi windows, this is the time
-    // when you should delete the corresponding element.
-    wins = [];
-    onQuit();
+    const sessionId = windowSessionIds.get(webContentsId);
+    if (sessionId && !appQuitApproved) {
+      const otherWindows = wins.filter(
+        (openWin) => openWin !== win && !openWin.isDestroyed(),
+      );
+      const appWillQuit =
+        process.platform !== "darwin" && otherWindows.length === 0;
+      if (!appWillQuit) {
+        rememberClosedWindow(getOpenedGroupFiles(sessionId));
+        setOpenedGroupFiles(sessionId, []);
+      }
+    }
+    wins = wins.filter((openWin) => openWin !== win && !openWin.isDestroyed());
+    windowSessionIds.delete(webContentsId);
+    readyPDFWindows.delete(webContentsId);
+    closeApprovals.delete(webContentsId);
+    closeWaiters.delete(webContentsId);
+    const timeout = closeTimeouts.get(webContentsId);
+    if (timeout) {
+      clearTimeout(timeout);
+      closeTimeouts.delete(webContentsId);
+    }
   });
 
   win.webContents.removeAllListeners("did-finish-load");
@@ -243,38 +609,15 @@ function createWindow(
     } else {
       win.show();
     }
-    if (fileToOpen) {
-      if (store.store.general.MaximizeOnOpen) {
-        win.maximize();
-      }
+    if (filename && store.store.general.MaximizeOnOpen) {
+      win.maximize();
     }
   });
 
   if (!menuIsConfigured) {
-    const template = createMenu();
-    const menu = Menu.buildFromTemplate(template);
-    const file_open = menu.getMenuItemById("file-open");
-    const print = menu.getMenuItemById("file-print");
-    const file_quit = menu.getMenuItemById("file-quit");
-
-    if (file_open) {
-      file_open.click = () => {
-        openNewPDF();
-      };
-    }
-
-    if (print) {
-      print.click = () => {
-        const focusedWin = BrowserWindow.getFocusedWindow();
-        if (focusedWin) {
-          focusedWin.webContents.send("file-print");
-        }
-      };
-    }
-
-    if (file_quit) {
-      file_quit.click = onQuit;
-    }
+    Menu.setApplicationMenu(buildApplicationMenu());
+    menuIsConfigured = true;
+    refreshRecentlyClosedMenus();
 
     ipcMain.handle("getPath", (_e: IpcMainInvokeEvent, args: string) => {
       return getpath(args);
@@ -282,6 +625,26 @@ function createWindow(
 
     ipcMain.handle("ResolvePath", (_e: IpcMainInvokeEvent, args: string) => {
       return resolve(args);
+    });
+
+    ipcMain.on("open-dropped-pdfs", (event, filenames: string[]) => {
+      const owner = event.sender.hostWebContents;
+      const targetWin = wins.find(
+        (openWin) => !openWin.isDestroyed() && openWin.webContents === owner,
+      );
+      if (!targetWin || !Array.isArray(filenames)) {
+        return;
+      }
+      const files = normalizeOpenedFiles(
+        filenames.filter(
+          (filename) =>
+            typeof filename === "string" && /\.pdf$/i.test(filename),
+        ),
+      ).map((file) => file.filename);
+      if (files.length > 0) {
+        appendOpenedFiles(targetWin, files);
+        targetWin.webContents.send("file-open", files);
+      }
     });
 
     ipcMain.on("openExternal", async (_e: IpcMainEvent, url: string) => {
@@ -312,32 +675,199 @@ function createWindow(
       },
     );
     ipcMain.handle(
+      "SetFilterPreferences",
+      (_event: IpcMainInvokeEvent, filterPreferences: FilterPreferences) => {
+        store.set("filterPreferences", filterPreferences);
+      },
+    );
+    ipcMain.handle(
       "SetOpenedFiles",
-      (_e: IpcMainInvokeEvent, openedFiles: (OpenedFile | string)[]) => {
-        if (openedFiles && openedFiles.length > 0) {
-          store.set("openedFiles", openedFiles);
-        } else {
-          store.set("openedFiles", []);
+      (event: IpcMainInvokeEvent, openedFiles: (OpenedFile | string)[]) => {
+        const sessionId = windowSessionIds.get(event.sender.id);
+        if (sessionId) {
+          setOpenedGroupFiles(sessionId, openedFiles ?? []);
         }
+      },
+    );
+    ipcMain.handle("GetOpenedFiles", (event: IpcMainInvokeEvent) => {
+      const sessionId = windowSessionIds.get(event.sender.id);
+      return sessionId ? getOpenedGroupFiles(sessionId) : [];
+    });
+    ipcMain.on("pdf-window-ready", (event) => {
+      if (windowSessionIds.has(event.sender.id)) {
+        readyPDFWindows.add(event.sender.id);
+      }
+    });
+    ipcMain.on("show-tab-menu", (event, tabId: number, filename: string) => {
+      const source = wins.find((win) => win.webContents === event.sender);
+      if (!source) {
+        return;
+      }
+      const requestMove = (targetWindowId: number | null) => {
+        if (!source.isDestroyed()) {
+          source.webContents.send("move-tab-request", tabId, targetWindowId);
+        }
+      };
+      const destinations: MenuItemConstructorOptions[] = wins
+        .filter((win) => win !== source && !win.isDestroyed())
+        .map((win) => {
+          const sessionId = windowSessionIds.get(win.webContents.id);
+          const firstFile = sessionId && getOpenedGroupFiles(sessionId)[0];
+          return {
+            label: `${firstFile ? parse(firstFile.filename).base : "Empty window"} (${win.id})`,
+            click: () => requestMove(win.id),
+          };
+        });
+      Menu.buildFromTemplate([
+        { label: `Move ${parse(filename).base}`, enabled: false },
+        { label: "Move Tab to New Window", click: () => requestMove(null) },
+        {
+          label: "Move Tab to Window",
+          enabled: destinations.length > 0,
+          submenu: destinations,
+        },
+      ]).popup({ window: source });
+    });
+    ipcMain.handle(
+      "move-tab-to-window",
+      async (event, file: OpenedFile, targetWindowId: number | null) => {
+        const source = wins.find((win) => win.webContents === event.sender);
+        const sessionId = windowSessionIds.get(event.sender.id);
+        if (!source || !sessionId) {
+          return false;
+        }
+        const filename = normalizeFilename(file.filename);
+        if (
+          !getOpenedGroupFiles(sessionId).some(
+            (entry) => entry.filename === filename,
+          )
+        ) {
+          return false;
+        }
+        const destination =
+          targetWindowId === null
+            ? createWindow()
+            : wins.find(
+                (win) =>
+                  win.id === targetWindowId &&
+                  win !== source &&
+                  !win.isDestroyed(),
+              );
+        if (!destination) {
+          return false;
+        }
+        const transferId = randomUUID();
+        const destinationId = destination.webContents.id;
+        const moved = await new Promise<boolean>((resolveMove) => {
+          const finish = (success: boolean) => {
+            clearTimeout(timeout);
+            ipcMain.removeListener("pdf-window-ready", onReady);
+            ipcMain.removeListener("tab-transfer-ready", onTransferred);
+            resolveMove(success);
+          };
+          const send = () => {
+            if (destination.isDestroyed()) {
+              finish(false);
+              return;
+            }
+            destination.webContents.send(
+              "file-open",
+              [[filename], [file.pageNumber]],
+              false,
+              transferId,
+            );
+          };
+          const onReady = (readyEvent: IpcMainEvent) => {
+            if (readyEvent.sender.id === destinationId) {
+              send();
+            }
+          };
+          const onTransferred = (
+            readyEvent: IpcMainEvent,
+            receivedId: string,
+          ) => {
+            if (
+              readyEvent.sender.id === destinationId &&
+              receivedId === transferId
+            ) {
+              finish(true);
+            }
+          };
+          const timeout = setTimeout(() => finish(false), 10000);
+          ipcMain.on("pdf-window-ready", onReady);
+          ipcMain.on("tab-transfer-ready", onTransferred);
+          if (readyPDFWindows.has(destinationId)) {
+            send();
+          }
+        });
+        if (moved) {
+          setOpenedGroupFiles(
+            sessionId,
+            getOpenedGroupFiles(sessionId).filter(
+              (entry) => entry.filename !== filename,
+            ),
+          );
+          if (!destination.isDestroyed()) {
+            destination.show();
+            destination.focus();
+          }
+        }
+        return moved;
       },
     );
     ipcMain.handle(
       "ReceivePageNumber",
-      (_e: IpcMainInvokeEvent, filename: string, pageNumber) => {
-        const openedFiles = store.get("openedFiles");
-        openedFiles.forEach((f, i) => {
-          if (typeof f === "string") {
-            if (f === filename) {
-              openedFiles[i] = { filename, pageNumber };
-            }
-          } else if (f.filename === filename) {
-            openedFiles[i] = { filename, pageNumber };
-          }
-        });
-        store.set("openedFiles", openedFiles);
-        store.set("canQuit", true);
+      (event: IpcMainInvokeEvent, filename: string, pageNumber: number) => {
+        const sessionId = windowSessionIds.get(event.sender.id);
+        if (!sessionId) {
+          return;
+        }
+        const normalizedFilename = normalizeFilename(filename);
+        const files = getOpenedGroupFiles(sessionId).map((file) =>
+          file.filename === normalizedFilename ? { ...file, pageNumber } : file,
+        );
+        setOpenedGroupFiles(sessionId, files);
       },
     );
+    ipcMain.handle(
+      "RecordClosedTab",
+      (event: IpcMainInvokeEvent, file: OpenedFile) => {
+        const filename = normalizeFilename(file.filename);
+        const sessionId = windowSessionIds.get(event.sender.id);
+        const savedFile = sessionId
+          ? getOpenedGroupFiles(sessionId).find(
+              (openedFile) => openedFile.filename === filename,
+            )
+          : undefined;
+        rememberClosedTab({
+          filename,
+          pageNumber:
+            Number.isFinite(file.pageNumber) && file.pageNumber > 0
+              ? file.pageNumber
+              : savedFile?.pageNumber ?? 0,
+        });
+      },
+    );
+    ipcMain.handle(
+      "RemoveRecentlyClosedTab",
+      (_event: IpcMainInvokeEvent, filename: string) => {
+        const closedTabs = store.get("recentlyClosedTabs");
+        const index = closedTabs.findIndex(
+          (file) => file.filename === normalizeFilename(filename),
+        );
+        if (index >= 0) {
+          closedTabs.splice(index, 1);
+          store.set("recentlyClosedTabs", closedTabs);
+          refreshRecentlyClosedMenus();
+        }
+      },
+    );
+    ipcMain.on("restoreRecentlyClosedTab", (_event, id: string) => {
+      reopenRecentlyClosedTab(id);
+    });
+    ipcMain.on("restoreRecentlyClosedWindow", (_event, id: string) => {
+      reopenRecentlyClosedWindow(id);
+    });
 
     ipcMain.handle("GetSettings", (_e: IpcMainInvokeEvent) => {
       return store.store;
@@ -346,70 +876,81 @@ function createWindow(
     ipcMain.handle("GetVersion", (_e: IpcMainInvokeEvent) => {
       return versionString();
     });
-    Menu.setApplicationMenu(menu);
-    menuIsConfigured = true;
   }
 
-  const openNewPDF = () => {
-    dialog
-      .showOpenDialog(win, {
-        properties: ["openFile", "multiSelections"],
-        filters: [{ name: "PDF Files", extensions: ["pdf"] }],
-      })
-      .then((dialogReturn: OpenDialogReturnValue) => {
-        const filenames = dialogReturn.filePaths;
-        if (filenames && filenames.length > 0) {
-          if (wins.length === 0) {
-            createWindow(filenames);
-          } else {
-            const focusedWin = BrowserWindow.getFocusedWindow() || wins[0];
-            if (focusedWin) {
-              focusedWin.webContents.send("file-open", filenames);
-              if (store.store.general.MaximizeOnOpen) {
-                focusedWin.maximize();
-              }
+  const openNewPDF = (openInNewWindow = store.get("general").MultiWindow) => {
+    const focusedWin = getActivePDFWindow();
+    const options: OpenDialogOptions = {
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+    };
+    const dialogPromise = focusedWin
+      ? dialog.showOpenDialog(focusedWin, options)
+      : dialog.showOpenDialog(options);
+    dialogPromise.then((dialogReturn: OpenDialogReturnValue) => {
+      const filenames = dialogReturn.filePaths;
+      if (filenames && filenames.length > 0) {
+        if (openInNewWindow) {
+          createWindow(filenames);
+        } else {
+          const targetWin = getActivePDFWindow();
+          if (targetWin) {
+            targetWin.webContents.send("file-open", filenames);
+            appendOpenedFiles(targetWin, filenames);
+            if (store.store.general.MaximizeOnOpen) {
+              targetWin.maximize();
             }
+          } else {
+            createWindow(filenames);
           }
-          const openedFiles = store.get("openedFiles");
-          store.set(
-            "openedFiles",
-            Array.from(new Set(openedFiles.concat(filenames))),
-          );
         }
-      });
+      }
+    });
   };
+  openPdfDialog = openNewPDF;
 
   ipcMain.removeAllListeners("togglePrinting");
   ipcMain.on("togglePrinting", (_e: IpcMainEvent, msg: string) => {
+    printingEnabled = Boolean(msg);
     const menu = Menu.getApplicationMenu();
     if (menu) {
-      const print = menu.getMenuItemById("file-print");
+      const print = findMenuItem(menu, "file-print");
       if (print) {
-        print.enabled = Boolean(msg);
+        print.enabled = printingEnabled;
       }
     }
   });
 
   ipcMain.removeAllListeners("newWindow");
-  ipcMain.once("newWindow", (_e: IpcMainEvent, msg: undefined | null) => {
-    log.debug("opening ", msg, " in new window");
-    createWindow(msg);
+  ipcMain.on("newWindow", (_event: IpcMainEvent, msg: string | string[]) => {
+    const filenames = Array.isArray(msg) ? msg : msg ? [msg] : [];
+    createWindow(filenames.length > 0 ? filenames : null);
   });
 
   ipcMain.removeAllListeners("resizeWindow");
-  ipcMain.once("resizeWindow", (_e: IpcMainEvent, _msg: string) => {
-    const { width, height } = win.getBounds();
+  ipcMain.on("resizeWindow", (event: IpcMainEvent, _msg: string) => {
+    const targetWin = wins.find(
+      (openWin) => openWin.webContents.id === event.sender.id,
+    );
+    if (!targetWin) {
+      return;
+    }
+    const { width, height } = targetWin.getBounds();
     if (width < 1000 || height < 650) {
-      win.setResizable(true);
-      win.setSize(1000, 650);
-      win.center();
+      targetWin.setResizable(true);
+      targetWin.setSize(1000, 650);
+      targetWin.center();
     }
   });
 
   ipcMain.removeAllListeners("openNewPDF");
-  ipcMain.on("openNewPDF", (_e: IpcMainEvent, _msg: null) => {
-    openNewPDF();
-  });
+  ipcMain.on(
+    "openNewPDF",
+    (_e: IpcMainEvent, openInNewWindow: boolean | null) => {
+      openNewPDF(openInNewWindow ?? store.get("general").MultiWindow);
+    },
+  );
+  return win;
 }
 
 let fileToOpen: string | (OpenedFile | string)[] = "";
@@ -436,7 +977,7 @@ const argv = yargs
   .parseSync();
 
 const { p, _ } = argv;
-const pdf = _ as string[]; // string[] or number[] force only string[]
+const pdf = normalizeOpenedFiles(_ as string[]).map((file) => file.filename);
 
 if (pdf.length > 0) {
   fileToOpen = pdf;
@@ -449,16 +990,20 @@ if (pdf.length > 0) {
 app.on("open-file", (e: Event, path: string) => {
   e.preventDefault();
   if (app.isReady()) {
-    if (wins.length === 0) {
+    if (store.get("general").MultiWindow) {
       createWindow(path);
     } else {
-      const focusedWin = BrowserWindow.getFocusedWindow();
-      if (focusedWin) {
-        focusedWin.webContents.send("file-open", [path]);
+      const targetWin = getActivePDFWindow();
+      if (targetWin) {
+        targetWin.webContents.send("file-open", [path]);
+        appendOpenedFiles(targetWin, [path]);
+      } else {
+        createWindow(path);
       }
     }
+  } else {
+    fileToOpen = resolve(path);
   }
-  fileToOpen = resolve(path);
 });
 
 app.whenReady().then(() => {
@@ -466,12 +1011,11 @@ app.whenReady().then(() => {
     store.get("keybinds") as Record<string, Keybinds>,
     process.platform,
   );
-  if (!fileToOpen) {
-    fileToOpen = store.get("openedFiles");
-    console.log("fileToOpen =", fileToOpen);
-  }
-  let filenames: string | string[];
-  if (fileToOpen) {
+  const hasExplicitOpen = Array.isArray(fileToOpen)
+    ? fileToOpen.length > 0
+    : fileToOpen.length > 0;
+  if (hasExplicitOpen) {
+    let filenames: string | string[];
     if (typeof fileToOpen === "string") {
       filenames = fileToOpen.replace("file://", "");
     } else {
@@ -493,7 +1037,20 @@ app.whenReady().then(() => {
       createWindow(filenames);
     }
   } else {
-    createWindow();
+    const groups = store.get("openedGroups").filter((group) => {
+      return group.files.length > 0;
+    });
+    if (groups.length > 0) {
+      for (const group of groups) {
+        createWindow(
+          group.files.map((file) => file.filename),
+          group.files.map((file) => file.pageNumber),
+          group.id,
+        );
+      }
+    } else {
+      createWindow();
+    }
   }
 
   if (process.env.EASTER_EGG) {
@@ -508,26 +1065,47 @@ app.whenReady().then(() => {
 
   const sm: MenuItemConstructorOptions[] = [];
   for (const action of keybinds.actions) {
-    const kb = keybinds.getActionKeybindsTrigger(action);
+    const triggers = keybinds.getActionKeybindsTrigger(action);
     const cb = () => {
       const focusedWin = BrowserWindow.getFocusedWindow();
       if (focusedWin) {
         focusedWin.webContents.send(
           keybinds.getAction(action),
-          keybinds.getActionData(action),
+          action === "openNewPDF" ? false : keybinds.getActionData(action),
         );
       }
     };
-    // try {
-    //   localShortcut.register(keybinds.getActionKeybindsTrigger(action), cb);
-    // } catch (e) {
-    //   console.log(e);
-    // }
-    sm.push({
-      label: action,
-      accelerator: kb?.length > 0 ? kb[0] : "",
-      click: cb,
-    });
+    for (const [index, accelerator] of triggers.entries()) {
+      sm.push({
+        label: `${keybinds.getActionDisplayName(action)}${index > 0 ? " (alternate)" : ""}`,
+        accelerator,
+        click: cb,
+      });
+    }
+  }
+  if (process.platform === "darwin") {
+    sm.push(
+      {
+        label: "Next Tab",
+        accelerator: "Alt+Cmd+Right",
+        click: () => {
+          BrowserWindow.getFocusedWindow()?.webContents.send(
+            "switch-tab",
+            "next",
+          );
+        },
+      },
+      {
+        label: "Previous Tab",
+        accelerator: "Alt+Cmd+Left",
+        click: () => {
+          BrowserWindow.getFocusedWindow()?.webContents.send(
+            "switch-tab",
+            "prev",
+          );
+        },
+      },
+    );
   }
 
   // register Ctrl+1 to Ctrl+9 shortcuts
@@ -550,14 +1128,8 @@ app.whenReady().then(() => {
       click: cb,
     });
   }
-  const menu = Menu.getApplicationMenu() || new Menu();
-  menu.append(
-    new MenuItem({
-      label: "Navigate",
-      submenu: sm,
-    }),
-  );
-  Menu.setApplicationMenu(menu);
+  navigateMenuItems = sm;
+  refreshRecentlyClosedMenus();
 });
 
 app.on("window-all-closed", () => {

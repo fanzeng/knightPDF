@@ -2,7 +2,11 @@ import type { MenuItemConstructorOptions } from "electron";
 import { shell } from "electron";
 import { openSettings } from "./settings";
 
-function createMenu() {
+function createMenu(
+  recentlyClosedTabs: MenuItemConstructorOptions[],
+  recentlyClosedWindows: MenuItemConstructorOptions[],
+  navigateMenu?: MenuItemConstructorOptions[],
+) {
   const menuTemplate: MenuItemConstructorOptions[] = [];
   menuTemplate.push(
     {
@@ -10,10 +14,66 @@ function createMenu() {
       label: "File",
       submenu: [
         {
+          label: "New Tab...",
+          id: "file-new-tab",
+        },
+        {
+          label: "New Window",
+          id: "file-new-window",
+          accelerator: "CmdOrCtrl+Shift+N",
+        },
+        { type: "separator" },
+        {
           label: "Open...",
           id: "file-open",
           accelerator: "CmdOrCtrl+O",
         },
+        {
+          label: "Open Recent",
+          submenu: [
+            {
+              label: "Recently Closed Tabs",
+              id: "file-recent-tabs",
+              submenu:
+                recentlyClosedTabs.length > 0
+                  ? [
+                      ...recentlyClosedTabs,
+                      { type: "separator" },
+                      {
+                        label: "Clear Recently Closed Tabs",
+                        id: "file-clear-recent-tabs",
+                      },
+                    ]
+                  : [
+                      {
+                        label: "No recently closed tabs",
+                        enabled: false,
+                      },
+                    ],
+            },
+            {
+              label: "Recently Closed Windows",
+              id: "file-recent-windows",
+              submenu:
+                recentlyClosedWindows.length > 0
+                  ? [
+                      ...recentlyClosedWindows,
+                      { type: "separator" },
+                      {
+                        label: "Clear Recently Closed Windows",
+                        id: "file-clear-recent-windows",
+                      },
+                    ]
+                  : [
+                      {
+                        label: "No recently closed windows",
+                        enabled: false,
+                      },
+                    ],
+            },
+          ],
+        },
+        { type: "separator" },
         {
           label: "Print",
           id: "file-print",
@@ -100,6 +160,9 @@ function createMenu() {
       ],
     },
   );
+  if (navigateMenu) {
+    menuTemplate.push({ label: "Navigate", submenu: navigateMenu });
+  }
   return menuTemplate;
 }
 

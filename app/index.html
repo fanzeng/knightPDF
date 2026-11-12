@@ -45,7 +45,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                             --tab-background: #2d2d2d;
                             --tab-color: #cccccc;
                             --tab-border-color: #1e1e1e;
-                            --tab-active-background: #1e1e1e;
+                            --tab-active-background: #454d47;
+                            --tab-active-color: #ffffff;
                             --tag-hover-background: #1e1e1e;
                             --button-font-size: 15px;
                             --button-background: none;
@@ -71,25 +72,38 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                             max-width: calc(10vw - 20px);
                             overflow: hidden;
                         }
+                        .tabs > .tab.document-tab.active {
+                            font-weight: 600;
+                            box-shadow: inset 0 -3px #9dbb9c;
+                        }
                     </style>
                 </tab-group>
                 <div id="menu">
                     <div id="crispy-button" class="button active">Crispy</div>
                     <div id="sepia-button" class="button">Sepia</div>
                     <div id="gentle-button" class="button">Gentle</div>
-                    <div id="custom-button" class="button">Custom</div>
+                    <div id="custom-button" class="button"><span id="custom-preview">Custom</span></div>
+                    <button
+                        id="customize-button"
+                        class="button"
+                        type="button"
+                        title="Adjust custom filters"
+                        aria-label="Adjust custom filters"
+                    >
+                        <span aria-hidden="true">&#9881;&#65038;</span>
+                    </button>
                 </div>
                 <style>
                     .container {
                         display: flex;
                         align-items: center;
-                        justify-content: space-between;
+                        width: 100%;
                     }
                     tab-group {
-                        width: 85vw;
-                        flex-grow: 1;
+                        flex: 1 1 0;
+                        min-width: 0;
                         overflow-x: auto;
-                        overflow-y: auto;
+                        overflow-y: hidden;
                         display: flex;
                         flex-wrap: nowrap;
                         white-space: nowrap;
@@ -98,11 +112,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
                         display: none;
                     }
                     #menu {
-                        width: 15vw;
+                        position: static;
+                        width: auto;
+                        flex: 0 0 auto;
                     }
                 </style>
             </div>
         </div>
+        <div id="filter-dismiss-layer" hidden></div>
         <div id="darkConfigurator">
             <h3>Settings</h3>
             <div id="slides">
@@ -128,6 +145,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
             </div>
             <div id="splash-extra">
                 <h3 id="prompt">Open File with Ctrl/Cmd+O</h3>
+            </div>
+            <div id="recent-history" hidden>
+                <section>
+                    <h4>Recently Closed Tabs</h4>
+                    <div id="recent-tabs"></div>
+                </section>
+                <section>
+                    <h4>Recently Closed Windows</h4>
+                    <div id="recent-windows"></div>
+                </section>
             </div>
         </div>
         <script type="module" src="./render/index.js"></script>
